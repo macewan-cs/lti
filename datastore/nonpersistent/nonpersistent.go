@@ -51,7 +51,6 @@ func New() *Store {
 // StoreRegistration stores a Registration in-memory.
 func (s *Store) StoreRegistration(reg datastore.Registration) error {
 	s.Registrations.Store(reg.Issuer, reg)
-
 	return nil
 }
 
@@ -70,7 +69,6 @@ func (s *Store) StoreDeployment(issuer, deploymentID string) error {
 
 	s.Deployments.Store(deploymentIndex(issuer, deploymentID),
 		datastore.Deployment{DeploymentID: deploymentID})
-
 	return nil
 }
 
@@ -85,7 +83,6 @@ func (s *Store) FindRegistrationByIssuer(issuer string) (datastore.Registration,
 	if !ok {
 		return datastore.Registration{}, datastore.ErrRegistrationNotFound
 	}
-
 	return registration.(datastore.Registration), nil
 }
 
@@ -103,40 +100,45 @@ func (s *Store) FindDeployment(issuer, deploymentID string) (datastore.Deploymen
 	if !ok {
 		return datastore.Deployment{}, datastore.ErrDeploymentNotFound
 	}
-
 	return deployment.(datastore.Deployment), nil
 }
 
-// StoreNonce stores a Nonce in-memory.
-func (s *Store) StoreNonce(nonce, issuer string) error {
+// StoreNonce stores a Nonce in-memory. Since the nonce and target_link_uri values have similarly scoped verifications
+// required, use the the unique nonce value as a key to store the target_link_uri value. This is used to verify the OIDC
+// login request target_link_uri is the same as the claim of the same name in the launch id_token.
+func (s *Store) StoreNonce(nonce, targetLinkURI string) error {
 	if nonce == "" {
 		return errors.New("received empty nonce argument")
 	}
-	if issuer == "" {
+	if targetLinkURI == "" {
 		return errors.New("received empty issuer argument")
 	}
 
-	s.Nonces.Store(nonce, issuer)
-
+	s.Nonces.Store(nonce, targetLinkURI)
 	return nil
 }
 
 // TestAndClearNonce looks up a Nonce, returns whether it was found or not, and clears the entry if found. If the nonce
 // wasn't found, it returns the datastore error ErrNonceNotFound.
-func (s *Store) TestAndClearNonce(nonce, issuer string) (bool, error) {
+func (s *Store) TestAndClearNonce(nonce, targetLinkURI string) (bool, error) {
 	if nonce == "" {
 		return false, errors.New("received empty nonce argument")
 	}
-	if issuer == "" {
-		return false, errors.New("received empty issuer argument")
+	if targetLinkURI == "" {
+		return false, errors.New("received empty target link uri argument")
 	}
 
-	// Ignore the associated value, the issuer, since it returns only a Boolean.
-	if _, isFound := s.Nonces.LoadAndDelete(nonce); isFound {
-		return true, nil
+	checkURI, ok := s.Nonces.Load(nonce)
+	if !ok {
+		return false, datastore.ErrNonceNotFound
+	}
+	if checkURI != targetLinkURI {
+		s.Nonces.Delete(nonce)
+		return false, datastore.ErrNonceTargetLinkURIMismatch
 	}
 
-	return false, datastore.ErrNonceNotFound
+	s.Nonces.Delete(nonce)
+	return true, nil
 }
 
 // StoreLaunchData stores the launch data, i.e. the id_token JWT.

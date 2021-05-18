@@ -14,12 +14,12 @@ import (
 // A Registration is the details of a link between a Platform and a Tool. There can be multiple deployments per
 // registration. Each Registration is uniquely identifed by the ClientID.
 type Registration struct {
-	Issuer       string
-	ClientID     string
-	AuthTokenURI *url.URL
-	AuthLoginURI *url.URL
-	KeysetURI    *url.URL
-	LaunchURI    *url.URL
+	Issuer        string
+	ClientID      string
+	AuthTokenURI  *url.URL
+	AuthLoginURI  *url.URL
+	KeysetURI     *url.URL
+	TargetLinkURI *url.URL
 }
 
 // A Deployment contains that details that identify the platform-tool integration for a message.
@@ -56,9 +56,10 @@ type RegistrationStorer interface {
 }
 
 var ErrNonceNotFound = errors.New("nonce not found")
+var ErrNonceTargetLinkURIMismatch = errors.New("nonce found with mismatched target link uri")
 
 type NonceStorer interface {
-	StoreNonce(nonce string, issuer string) error
+	StoreNonce(nonce string, targetLinkURI string) error
 	TestAndClearNonce(nonce string, issuer string) (bool, error)
 }
 

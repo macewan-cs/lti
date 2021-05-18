@@ -54,7 +54,7 @@ func (l *Login) RedirectURI(r *http.Request) (string, http.Cookie, error) {
 	}
 	// Generate and store nonce.
 	nonce := uuid.New().String()
-	err = l.cfg.Nonces.StoreNonce(nonce, registration.Issuer)
+	err = l.cfg.Nonces.StoreNonce(nonce, registration.TargetLinkURI.String())
 	if err != nil {
 		return "", http.Cookie{}, err
 	}
@@ -65,7 +65,7 @@ func (l *Login) RedirectURI(r *http.Request) (string, http.Cookie, error) {
 	values.Set("response_mode", "form_post")
 	values.Set("prompt", "none")
 	values.Set("client_id", registration.ClientID)
-	values.Set("redirect_uri", registration.LaunchURI.String())
+	values.Set("redirect_uri", registration.TargetLinkURI.String())
 	values.Set("state", state)
 	values.Set("nonce", nonce)
 	values.Set("login_hint", r.FormValue("login_hint"))

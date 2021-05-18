@@ -25,15 +25,15 @@ func TestStoreAndFindRegistrationByIssuer(t *testing.T) {
 	authTokenURI, _ := url.Parse("https://domain.tld/token")
 	authLoginURI, _ := url.Parse("https://domain.tld/auth")
 	keysetURI, _ := url.Parse("https://domain.tld/keyset")
-	launchURI, _ := url.Parse("https://domain.tld/launcher")
+	targetLinkURI, _ := url.Parse("https://domain.tld/launcher")
 
 	registration := datastore.Registration{
-		Issuer:       issuer,
-		ClientID:     "abcdef123456",
-		AuthTokenURI: authTokenURI,
-		AuthLoginURI: authLoginURI,
-		KeysetURI:    keysetURI,
-		LaunchURI:    launchURI,
+		Issuer:        issuer,
+		ClientID:      "abcdef123456",
+		AuthTokenURI:  authTokenURI,
+		AuthLoginURI:  authLoginURI,
+		KeysetURI:     keysetURI,
+		TargetLinkURI: targetLinkURI,
 	}
 
 	npStore := New()

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/google/uuid"
 	"github.com/lestrrat-go/jwx/jwk"
 	"github.com/lestrrat-go/jwx/jwt"
 	"github.com/macewan-cs/lti/datastore"
@@ -25,7 +26,6 @@ type Config struct {
 
 type Launch struct {
 	cfg Config
-	//key			some.KeyType
 }
 
 func New(cfg Config) *Launch {
@@ -76,13 +76,28 @@ func (l *Launch) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	// Nonce.
+	// State.
+	state := r.FormValue("state")
+	stateCookie, err := r.Cookie("stateCookie")
+	if err != nil {
+		http.Error(w, "state cookie not found", http.StatusBadRequest)
+		return
+	}
+	if stateCookie.Value != state {
+		http.Error(w, "state validation failed", http.StatusBadRequest)
+	}
+	// Nonce and target link URI.
+	targetLinkURI, ok := verifiedToken.Get("https://purl.imsglobal.org/spec/lti/claim/target_link_uri")
+	if !ok {
+		http.Error(w, "target link uri not found in request", http.StatusBadRequest)
+		return
+	}
 	nonce, ok := verifiedToken.Get("nonce")
 	if !ok {
 		http.Error(w, "nonce not found in request", http.StatusBadRequest)
 		return
 	}
-	found, err := l.cfg.Nonces.TestAndClearNonce(nonce.(string), issuer)
+	found, err := l.cfg.Nonces.TestAndClearNonce(nonce.(string), targetLinkURI.(string))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -109,6 +124,45 @@ func (l *Launch) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	// LTI version.
+	ltiVersion, ok := verifiedToken.Get("https://purl.imsglobal.org/spec/lti/claim/version")
+	if !ok {
+		http.Error(w, "lti version not found in request", http.StatusBadRequest)
+		return
+	}
+	if ltiVersion != "1.3.0" {
+		http.Error(w, "compatible version not found in request", http.StatusBadRequest)
+		return
+	}
+	// Message Type. Only 'Resource link launch request' (LtiResourceLinkRequest) type is currently supported.
+	messageType, ok := verifiedToken.Get("https://purl.imsglobal.org/spec/lti/claim/message_type")
+	if !ok {
+		http.Error(w, "message type not found in request", http.StatusBadRequest)
+		return
+	}
+	if messageType.(string) != "LtiResourceLinkRequest" {
+		http.Error(w, "supported message type not found in request", http.StatusBadRequest)
+		return
+	}
+	// Resource link ID.
+	resourceLink, ok := verifiedToken.Get("https://purl.imsglobal.org/spec/lti/claim/resource_link")
+	if !ok {
+		http.Error(w, "lti version not found in request", http.StatusBadRequest)
+		return
+	}
+	// also do max 255 chars check - http://www.imsglobal.org/spec/lti/v1p3/#resource-link-claim
+	resourceMap := resourceLink.(map[string]interface{})
+	//_, ok = resourceMap["id"]
+	//if !ok {
+	//	http.Error(w, "resource id not found", http.StatusBadRequest)
+	//	return
+	//}
+	fmt.Println(resourceLink)
+	fmt.Println(resourceMap)
+
+	// Launch ID.
+	launchID := "lti1p3-launch-" + uuid.New().String()
+	fmt.Println(launchID)
 }
 
 func contains(n string, s []string) bool {
@@ -122,7 +176,6 @@ func contains(n string, s []string) bool {
 
 // The exported method Validate makes several unexported checks.
 func (l *Launch) Validate(r *http.Request) {
-
 }
 
 // Cookie check.

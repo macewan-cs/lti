@@ -22,12 +22,12 @@ func getRegistration() datastore.Registration {
 	launchURI, _ := url.Parse("https://tool.tld/launcher")
 
 	return datastore.Registration{
-		Issuer:       "https://platform.tld/instance",
-		ClientID:     "abcdef123456",
-		AuthTokenURI: authTokenURI,
-		AuthLoginURI: authLoginURI,
-		KeysetURI:    keysetURI,
-		LaunchURI:    launchURI,
+		Issuer:        "https://platform.tld/instance",
+		ClientID:      "abcdef123456",
+		AuthTokenURI:  authTokenURI,
+		AuthLoginURI:  authLoginURI,
+		KeysetURI:     keysetURI,
+		TargetLinkURI: launchURI,
 	}
 }
 
