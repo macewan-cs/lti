@@ -6,10 +6,12 @@
 package launch
 
 import (
+	"context"
 	"fmt"
 	"net/http"
-	"net/http/httputil"
 
+	"github.com/lestrrat-go/jwx/jwk"
+	"github.com/lestrrat-go/jwx/jwt"
 	"github.com/macewan-cs/lti/datastore"
 	"github.com/macewan-cs/lti/datastore/nonpersistent"
 )
@@ -19,6 +21,11 @@ type Config struct {
 	AccessTokens  datastore.AccessTokenStorer
 	Registrations datastore.RegistrationStorer
 	Nonces        datastore.NonceStorer
+}
+
+type Launch struct {
+	cfg Config
+	//key			some.KeyType
 }
 
 func New(cfg Config) *Launch {
@@ -39,23 +46,78 @@ func New(cfg Config) *Launch {
 	return &launch
 }
 
-type Launch struct {
-	cfg Config
-	//key			some.KeyType
-}
-
 // ServeHTTP
 //
 // Note: The handler must compare the "state" (generated and set in login) in a cookie with the "state" in the POST body.
 // Note: The handler must TestAndClear the "nonce" (verifying "true"). This nonce can be found in the POST body.
 // Note: Generate and add launch_id to req context.
 func (l *Launch) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	dump, err := httputil.DumpRequest(r, true)
+	idToken := []byte(r.FormValue("id_token"))
+	token, err := jwt.Parse(idToken)
 	if err != nil {
-		http.Error(w, fmt.Sprint(err), http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	fmt.Println(string(dump))
+	issuer := token.Issuer()
+	registration, err := l.cfg.Registrations.FindRegistrationByIssuer(issuer)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("no registration found for issuer %s", issuer), http.StatusBadRequest)
+		return
+	}
+	// Get keyset for verification.
+	keyset, err := jwk.Fetch(context.Background(), registration.KeysetURI.String())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	// Verification (signature check).
+	verifiedToken, err := jwt.Parse(idToken, jwt.WithKeySet(keyset))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	// Nonce.
+	nonce, ok := verifiedToken.Get("nonce")
+	if !ok {
+		http.Error(w, "nonce not found in request", http.StatusBadRequest)
+		return
+	}
+	found, err := l.cfg.Nonces.TestAndClearNonce(nonce.(string), issuer)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if !found {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	// Aud.
+	aud := verifiedToken.Audience()
+	found = contains(registration.ClientID, aud)
+	if !found {
+		http.Error(w, "client id not registered for this issuer", http.StatusBadRequest)
+		return
+	}
+	// Deployment ID.
+	deploymentID, ok := verifiedToken.Get("https://purl.imsglobal.org/spec/lti/claim/deployment_id")
+	if !ok {
+		http.Error(w, "deployment not found in request", http.StatusBadRequest)
+		return
+	}
+	_, err = l.cfg.Registrations.FindDeployment(issuer, deploymentID.(string))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+}
+
+func contains(n string, s []string) bool {
+	for _, v := range s {
+		if v == n {
+			return true
+		}
+	}
+	return false
 }
 
 // The exported method Validate makes several unexported checks.
@@ -65,11 +127,6 @@ func (l *Launch) Validate(r *http.Request) {
 
 // Cookie check.
 func validateState(r *http.Request) error {
-	return nil
-}
-
-// JWT format check.
-func validateJWTFormat(r *http.Request) error {
 	return nil
 }
 
