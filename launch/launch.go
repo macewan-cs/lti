@@ -7,6 +7,7 @@ package launch
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -48,131 +49,219 @@ func New(cfg Config) *Launch {
 	return &launch
 }
 
-// ServeHTTP
-//
-// Note: The handler must compare the "state" (generated and set in login) in a cookie with the "state" in the POST body.
-// Note: The handler must TestAndClear the "nonce" (verifying "true"). This nonce can be found in the POST body.
-// Note: Generate and add launch_id to req context.
+// ServeHTTP perfoms validations according the OIDC launch flow modified for use by the IMS Global LTI v1p3
+// specifications. State is found in a user agent cookie and the POST body. Nonce is found embedded in the id_token and
+// in a datastore.
 func (l *Launch) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	idToken := []byte(r.FormValue("id_token"))
-	token, err := jwt.Parse(idToken)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	var (
+		rawToken      []byte
+		err           error
+		statusCode    int
+		registration  datastore.Registration
+		verifiedToken jwt.Token
+	)
+
+	if rawToken, statusCode, err = getRawToken(r); err != nil {
+		http.Error(w, err.Error(), statusCode)
 		return
 	}
+
+	if registration, statusCode, err = validateRegistration(rawToken, l, r); err != nil {
+		http.Error(w, err.Error(), statusCode)
+		return
+	}
+
+	if verifiedToken, statusCode, err = validateSignature(rawToken, registration, r); err != nil {
+		http.Error(w, err.Error(), statusCode)
+		return
+	}
+
+	if statusCode, err = validateState(r); err != nil {
+		http.Error(w, err.Error(), statusCode)
+		return
+	}
+
+	if statusCode, err = validateClientID(verifiedToken, registration); err != nil {
+		http.Error(w, err.Error(), statusCode)
+		return
+	}
+
+	if statusCode, err = validateNonceAndTargetLinkURI(verifiedToken, l); err != nil {
+		http.Error(w, err.Error(), statusCode)
+		return
+	}
+
+	if statusCode, err = validateDeploymentID(verifiedToken, l); err != nil {
+		http.Error(w, err.Error(), statusCode)
+		return
+	}
+
+	if statusCode, err = validateVersionAndMessageType(verifiedToken); err != nil {
+		http.Error(w, err.Error(), statusCode)
+		return
+	}
+
+	if statusCode, err = validateResourceLink(verifiedToken); err != nil {
+		http.Error(w, err.Error(), statusCode)
+		return
+	}
+
+	// Store the Launch data under a unique Launch ID for future reference.
+	launchID := "lti1p3-launch-" + uuid.New().String()
+	l.cfg.LaunchDatas.StoreLaunchData(launchID, string(rawToken))
+}
+
+// Get the OICD id_token.
+func getRawToken(r *http.Request) ([]byte, int, error) {
+	idToken := []byte(r.FormValue("id_token"))
+	// Decode token and check for JWT format errors without verification. An external keyset is needed for verification.
+	_, err := jwt.Parse(idToken)
+	if err != nil {
+		return nil, http.StatusInternalServerError, err
+	}
+
+	return idToken, http.StatusOK, nil
+}
+
+// Find Registration by issuer, confirm id_token 'aud' claim matches registered ClientID.
+func validateRegistration(rawToken []byte, l *Launch, r *http.Request) (datastore.Registration, int, error) {
+	token, err := jwt.Parse(rawToken)
+	if err != nil {
+		return datastore.Registration{}, http.StatusInternalServerError, err
+	}
+
 	issuer := token.Issuer()
 	registration, err := l.cfg.Registrations.FindRegistrationByIssuer(issuer)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("no registration found for issuer %s", issuer), http.StatusBadRequest)
-		return
+		return datastore.Registration{}, http.StatusBadRequest, fmt.Errorf("no registration found for iss %s", issuer)
 	}
-	// Get keyset for verification.
+
+	return registration, http.StatusOK, nil
+}
+
+// Signature check, message authenticity check.
+func validateSignature(rawToken []byte, registration datastore.Registration, r *http.Request) (jwt.Token, int, error) {
+	// Get keyset from the Platform for verification.
 	keyset, err := jwk.Fetch(context.Background(), registration.KeysetURI.String())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
+		return nil, http.StatusNotFound, err
 	}
-	// Verification (signature check).
-	verifiedToken, err := jwt.Parse(idToken, jwt.WithKeySet(keyset))
+
+	// Perform the signature check.
+	verifiedToken, err := jwt.Parse(rawToken, jwt.WithKeySet(keyset))
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return nil, http.StatusInternalServerError, err
 	}
-	// State.
+
+	return verifiedToken, http.StatusOK, nil
+}
+
+// Check the state cookie against the state query value returned by the Platform.
+func validateState(r *http.Request) (int, error) {
 	state := r.FormValue("state")
 	stateCookie, err := r.Cookie("stateCookie")
 	if err != nil {
-		http.Error(w, "state cookie not found", http.StatusBadRequest)
-		return
+		return http.StatusBadRequest, errors.New("state cookie not found")
 	}
 	if stateCookie.Value != state {
-		http.Error(w, "state validation failed", http.StatusBadRequest)
+		return http.StatusBadRequest, errors.New("state validation failed")
 	}
-	// Nonce and target link URI.
+
+	return http.StatusOK, nil
+}
+
+// Check that the claimed client ID (aud) is listed for the claimed issuer.
+func validateClientID(verifiedToken jwt.Token, registration datastore.Registration) (int, error) {
+	audience := verifiedToken.Audience()
+	found := contains(registration.ClientID, audience)
+	if !found {
+		return http.StatusBadRequest, errors.New("client id not registered for this issuer")
+	}
+
+	return http.StatusOK, nil
+}
+
+// TargetLinkURI must be verified to match between the initial (login) auth request and the id_token, and therefore
+// serves as a value for incidental verification while also checking whether the nonce key exists.
+func validateNonceAndTargetLinkURI(verifiedToken jwt.Token, l *Launch) (int, error) {
 	targetLinkURI, ok := verifiedToken.Get("https://purl.imsglobal.org/spec/lti/claim/target_link_uri")
 	if !ok {
-		http.Error(w, "target link uri not found in request", http.StatusBadRequest)
-		return
+		return http.StatusBadRequest, errors.New("target link uri not found in request")
 	}
 	nonce, ok := verifiedToken.Get("nonce")
 	if !ok {
-		http.Error(w, "nonce not found in request", http.StatusBadRequest)
-		return
+		return http.StatusBadRequest, errors.New("nonce not found in request")
 	}
 	found, err := l.cfg.Nonces.TestAndClearNonce(nonce.(string), targetLinkURI.(string))
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return http.StatusInternalServerError, err
 	}
 	if !found {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+		return http.StatusBadRequest, err
 	}
-	// Aud.
-	aud := verifiedToken.Audience()
-	found = contains(registration.ClientID, aud)
-	if !found {
-		http.Error(w, "client id not registered for this issuer", http.StatusBadRequest)
-		return
-	}
+
+	return http.StatusOK, nil
+}
+
+// Deployment ID must exist under the issuer.
+func validateDeploymentID(verifiedToken jwt.Token, l *Launch) (int, error) {
 	// Deployment ID.
 	deploymentID, ok := verifiedToken.Get("https://purl.imsglobal.org/spec/lti/claim/deployment_id")
 	if !ok {
-		http.Error(w, "deployment not found in request", http.StatusBadRequest)
-		return
+		return http.StatusBadRequest, errors.New("deployment not found in request")
 	}
-	_, err = l.cfg.Registrations.FindDeployment(issuer, deploymentID.(string))
+	_, err := l.cfg.Registrations.FindDeployment(verifiedToken.Issuer(), deploymentID.(string))
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+		return http.StatusBadRequest, err
 	}
-	// LTI version.
-	ltiVersion, ok := verifiedToken.Get("https://purl.imsglobal.org/spec/lti/claim/version")
-	if !ok {
-		http.Error(w, "lti version not found in request", http.StatusBadRequest)
-		return
-	}
-	if ltiVersion != "1.3.0" {
-		http.Error(w, "compatible version not found in request", http.StatusBadRequest)
-		return
-	}
-	// Message Type. Only 'Resource link launch request' (LtiResourceLinkRequest) type is currently supported.
-	messageType, ok := verifiedToken.Get("https://purl.imsglobal.org/spec/lti/claim/message_type")
-	if !ok {
-		http.Error(w, "message type not found in request", http.StatusBadRequest)
-		return
-	}
-	if messageType.(string) != "LtiResourceLinkRequest" {
-		http.Error(w, "supported message type not found in request", http.StatusBadRequest)
-		return
-	}
-	// Resource link ID.
-	resourceLink, ok := verifiedToken.Get("https://purl.imsglobal.org/spec/lti/claim/resource_link")
-	if !ok {
-		http.Error(w, "lti version not found in request", http.StatusBadRequest)
-		return
-	}
-	switch resourceLink.(type) {
-	case map[string]interface{}:
-		resourceMap := resourceLink.(map[string]interface{})
-		resourceLinkID, ok := resourceMap["id"]
-		if !ok {
-			http.Error(w, "resource id not found", http.StatusBadRequest)
-			return
-		}
-		if len(resourceLinkID.(string)) > maximumResourceLinkIDLength {
-			http.Error(w, fmt.Sprintf("exceeds maximum length (%d)", maximumResourceLinkIDLength), http.StatusBadRequest)
-			return
-		}
-	default:
-		http.Error(w, "resource link improperly formatted", http.StatusBadRequest)
-		return
-	}
-	// Launch ID.
-	launchID := "lti1p3-launch-" + uuid.New().String()
-	fmt.Println(launchID)
+
+	return http.StatusOK, nil
 }
 
+// Check for valid version and message type. Only 'Resource link launch request' (LtiResourceLinkRequest) is currently
+// supported.
+func validateVersionAndMessageType(verifiedToken jwt.Token) (int, error) {
+	ltiVersion, ok := verifiedToken.Get("https://purl.imsglobal.org/spec/lti/claim/version")
+	if !ok {
+		return http.StatusBadRequest, errors.New("lti version not found in request")
+	}
+	if ltiVersion != "1.3.0" {
+		return http.StatusBadRequest, errors.New("compatible version not found in request")
+	}
+
+	messageType, ok := verifiedToken.Get("https://purl.imsglobal.org/spec/lti/claim/message_type")
+	if !ok {
+		return http.StatusBadRequest, errors.New("message type not found in request")
+	}
+	if messageType.(string) != "LtiResourceLinkRequest" {
+		return http.StatusBadRequest, errors.New("supported message type not found in request")
+	}
+
+	return http.StatusOK, nil
+}
+
+// Check resource link and ID.
+func validateResourceLink(verifiedToken jwt.Token) (int, error) {
+	resourceLink, ok := verifiedToken.Get("https://purl.imsglobal.org/spec/lti/claim/resource_link")
+	if !ok {
+		return http.StatusBadRequest, errors.New("lti version not found in request")
+	}
+	resourceLinkMap, ok := resourceLink.(map[string]interface{})
+	if !ok {
+		return http.StatusBadRequest, errors.New("resource link improperly formatted")
+	}
+	resourceLinkID, ok := resourceLinkMap["id"]
+	if !ok {
+		return http.StatusBadRequest, errors.New("resource id not found")
+	}
+	if len(resourceLinkID.(string)) > maximumResourceLinkIDLength {
+		return http.StatusBadRequest, fmt.Errorf("exceeds maximum length (%d)", maximumResourceLinkIDLength)
+	}
+
+	return http.StatusOK, nil
+}
+
+// Check if a string exists in a []string.
 func contains(n string, s []string) bool {
 	for _, v := range s {
 		if v == n {
@@ -180,38 +269,4 @@ func contains(n string, s []string) bool {
 		}
 	}
 	return false
-}
-
-// The exported method Validate makes several unexported checks.
-func (l *Launch) Validate(r *http.Request) {
-}
-
-// Cookie check.
-func validateState(r *http.Request) error {
-	return nil
-}
-
-// Nonce check.
-func validateNonce(r *http.Request) error {
-	return nil
-}
-
-// Find Registration by issuer, confirm id_token 'aud' claim matches registered ClientID.
-func validateRegistration(r *http.Request) error {
-	return nil
-}
-
-// Signature check, message authenticity check.
-func validateJWTSignature(r *http.Request) error {
-	return nil
-}
-
-// Deployment_ID must exist under the issuer.
-func validateDeployment(r *http.Request) error {
-	return nil
-}
-
-// Check for a valid message type.
-func validateMessageType(r *http.Request) error {
-	return nil
 }
