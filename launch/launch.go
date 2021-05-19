@@ -28,6 +28,8 @@ type Launch struct {
 	cfg Config
 }
 
+var maximumResourceLinkIDLength = 255
+
 func New(cfg Config) *Launch {
 	launch := Launch{}
 
@@ -150,16 +152,22 @@ func (l *Launch) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "lti version not found in request", http.StatusBadRequest)
 		return
 	}
-	// also do max 255 chars check - http://www.imsglobal.org/spec/lti/v1p3/#resource-link-claim
-	resourceMap := resourceLink.(map[string]interface{})
-	//_, ok = resourceMap["id"]
-	//if !ok {
-	//	http.Error(w, "resource id not found", http.StatusBadRequest)
-	//	return
-	//}
-	fmt.Println(resourceLink)
-	fmt.Println(resourceMap)
-
+	switch resourceLink.(type) {
+	case map[string]interface{}:
+		resourceMap := resourceLink.(map[string]interface{})
+		resourceLinkID, ok := resourceMap["id"]
+		if !ok {
+			http.Error(w, "resource id not found", http.StatusBadRequest)
+			return
+		}
+		if len(resourceLinkID.(string)) > maximumResourceLinkIDLength {
+			http.Error(w, fmt.Sprintf("exceeds maximum length (%d)", maximumResourceLinkIDLength), http.StatusBadRequest)
+			return
+		}
+	default:
+		http.Error(w, "resource link improperly formatted", http.StatusBadRequest)
+		return
+	}
 	// Launch ID.
 	launchID := "lti1p3-launch-" + uuid.New().String()
 	fmt.Println(launchID)
