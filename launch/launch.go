@@ -7,9 +7,12 @@ package launch
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/lestrrat-go/jwx/jwk"
@@ -55,10 +58,11 @@ func New(cfg Config) *Launch {
 func (l *Launch) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var (
 		rawToken      []byte
-		err           error
 		statusCode    int
+		err           error
 		registration  datastore.Registration
 		verifiedToken jwt.Token
+		launchMessage json.RawMessage
 	)
 
 	if rawToken, statusCode, err = getRawToken(r); err != nil {
@@ -106,9 +110,14 @@ func (l *Launch) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if launchMessage, statusCode, err = getLaunchData(rawToken); err != nil {
+		http.Error(w, err.Error(), statusCode)
+		return
+	}
+
 	// Store the Launch data under a unique Launch ID for future reference.
 	launchID := "lti1p3-launch-" + uuid.New().String()
-	l.cfg.LaunchDatas.StoreLaunchData(launchID, string(rawToken))
+	l.cfg.LaunchDatas.StoreLaunchData(launchID, launchMessage)
 }
 
 // Get the OICD id_token.
@@ -259,6 +268,20 @@ func validateResourceLink(verifiedToken jwt.Token) (int, error) {
 	}
 
 	return http.StatusOK, nil
+}
+
+// Parse the id token payload for storage.
+func getLaunchData(rawToken []byte) (json.RawMessage, int, error) {
+	if len(rawToken) == 0 {
+		return nil, http.StatusInternalServerError, errors.New("received empty raw token argument")
+	}
+	rawTokenParts := strings.SplitN(string(rawToken), ".", 3)
+	payload, err := base64.RawURLEncoding.DecodeString(rawTokenParts[1])
+	if err != nil {
+		return nil, http.StatusInternalServerError, err
+	}
+
+	return json.RawMessage(payload), http.StatusOK, nil
 }
 
 // Check if a string exists in a []string.

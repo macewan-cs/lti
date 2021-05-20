@@ -6,6 +6,7 @@
 package datastore
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -66,8 +67,8 @@ type NonceStorer interface {
 var ErrLaunchDataNotFound = errors.New("launch data not found")
 
 type LaunchDataStorer interface {
-	StoreLaunchData(launchID string, launchData string) error
-	FindLaunchData(launchID string) (string, error)
+	StoreLaunchData(launchID string, launchData json.RawMessage) error
+	FindLaunchData(launchID string) (json.RawMessage, error)
 }
 
 var ErrAccessTokenNotFound = errors.New("access token not found")

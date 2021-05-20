@@ -8,6 +8,7 @@
 package nonpersistent
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -142,11 +143,11 @@ func (s *Store) TestAndClearNonce(nonce, targetLinkURI string) (bool, error) {
 }
 
 // StoreLaunchData stores the launch data, i.e. the id_token JWT.
-func (s *Store) StoreLaunchData(launchID, launchData string) error {
+func (s *Store) StoreLaunchData(launchID string, launchData json.RawMessage) error {
 	if launchID == "" {
 		return errors.New("received empty launchID argument")
 	}
-	if launchData == "" {
+	if len(launchData) == 0 {
 		return errors.New("received empty launchData argument")
 	}
 
@@ -155,16 +156,16 @@ func (s *Store) StoreLaunchData(launchID, launchData string) error {
 }
 
 // FindLaunchData retrives a cached launchData.
-func (s *Store) FindLaunchData(launchID string) (string, error) {
+func (s *Store) FindLaunchData(launchID string) (json.RawMessage, error) {
 	if launchID == "" {
-		return "", errors.New("received empty launchID argument")
+		return nil, errors.New("received empty launchID argument")
 	}
 
 	launchData, ok := s.LaunchDatas.Load(launchID)
 	if !ok {
-		return "", datastore.ErrLaunchDataNotFound
+		return nil, datastore.ErrLaunchDataNotFound
 	}
-	return launchData.(string), nil
+	return launchData.(json.RawMessage), nil
 }
 
 func accessTokenIndex(tokenURI, clientID string, scopes []string) string {
