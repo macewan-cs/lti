@@ -131,8 +131,8 @@ func (l *Launch) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // getRawToken gets the OIDC id_token.
 func getRawToken(r *http.Request) ([]byte, int, error) {
-	idToken := []byte(r.FormValue("id_token"))
 	// Decode token and check for JWT format errors without verification. An external keyset is needed for verification.
+	idToken := []byte(r.FormValue("id_token"))
 	_, err := jwt.Parse(idToken)
 	if err != nil {
 		return nil, http.StatusBadRequest, err
