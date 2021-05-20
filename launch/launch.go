@@ -21,6 +21,8 @@ import (
 	"github.com/macewan-cs/lti/datastore/nonpersistent"
 )
 
+// Config represents the configuration used in creating a new *Launch. New will accept the zero value of this struct,
+// and in the case of the zero value, the resulting Launch will use nonpersistent storage.
 type Config struct {
 	LaunchDatas   datastore.LaunchDataStorer
 	AccessTokens  datastore.AccessTokenStorer
@@ -28,12 +30,14 @@ type Config struct {
 	Nonces        datastore.NonceStorer
 }
 
+// A Launch implements an external application's role in LTI standard's launch flow.
 type Launch struct {
 	cfg Config
 }
 
 var maximumResourceLinkIDLength = 255
 
+// New creates a *Launch, which implements the http.Handler interface for launching a tool.
 func New(cfg Config) *Launch {
 	launch := Launch{}
 
@@ -121,7 +125,7 @@ func (l *Launch) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	l.cfg.LaunchDatas.StoreLaunchData(launchID, launchData)
 }
 
-// Get the OICD id_token.
+// getRawToken gets the OIDC id_token.
 func getRawToken(r *http.Request) ([]byte, int, error) {
 	idToken := []byte(r.FormValue("id_token"))
 	// Decode token and check for JWT format errors without verification. An external keyset is needed for verification.
@@ -133,7 +137,7 @@ func getRawToken(r *http.Request) ([]byte, int, error) {
 	return idToken, http.StatusOK, nil
 }
 
-// Find Registration by issuer, confirm id_token 'aud' claim matches registered ClientID.
+// validateRegistration finds the registration by the issuer of the token.
 func validateRegistration(rawToken []byte, l *Launch, r *http.Request) (datastore.Registration, int, error) {
 	token, err := jwt.Parse(rawToken)
 	if err != nil {
@@ -149,7 +153,7 @@ func validateRegistration(rawToken []byte, l *Launch, r *http.Request) (datastor
 	return registration, http.StatusOK, nil
 }
 
-// Signature check, message authenticity check.
+// validateSignature checks the authenticity of the token.
 func validateSignature(rawToken []byte, registration datastore.Registration, r *http.Request) (jwt.Token, int, error) {
 	// Get keyset from the Platform for verification.
 	keyset, err := jwk.Fetch(context.Background(), registration.KeysetURI.String())
@@ -166,7 +170,7 @@ func validateSignature(rawToken []byte, registration datastore.Registration, r *
 	return verifiedToken, http.StatusOK, nil
 }
 
-// Check the state cookie against the state query value returned by the Platform.
+// validateState checks the state cookie against the state query value returned by the Platform.
 func validateState(r *http.Request) (int, error) {
 	state := r.FormValue("state")
 	stateCookie, err := r.Cookie("stateCookie")
@@ -180,7 +184,7 @@ func validateState(r *http.Request) (int, error) {
 	return http.StatusOK, nil
 }
 
-// Check that the claimed client ID (aud) is listed for the claimed issuer.
+// validateClientID checks that the claimed client ID (aud) is listed for the claimed issuer.
 func validateClientID(verifiedToken jwt.Token, registration datastore.Registration) (int, error) {
 	audience := verifiedToken.Audience()
 	found := contains(registration.ClientID, audience)
@@ -191,13 +195,14 @@ func validateClientID(verifiedToken jwt.Token, registration datastore.Registrati
 	return http.StatusOK, nil
 }
 
-// TargetLinkURI must be verified to match between the initial (login) auth request and the id_token, and therefore
-// serves as a value for incidental verification while also checking whether the nonce key exists.
+// validateNonceAndTargetLinkURI verifies that the TargetLinkURI provided during the initial (login) auth request and
+// the id_token matches, and in the process, it checks that the nonce also exists.
 func validateNonceAndTargetLinkURI(verifiedToken jwt.Token, l *Launch) (int, error) {
 	targetLinkURI, ok := verifiedToken.Get("https://purl.imsglobal.org/spec/lti/claim/target_link_uri")
 	if !ok {
 		return http.StatusBadRequest, errors.New("target link uri not found in request")
 	}
+
 	nonce, ok := verifiedToken.Get("nonce")
 	if !ok {
 		return http.StatusBadRequest, errors.New("nonce not found in request")
@@ -213,13 +218,13 @@ func validateNonceAndTargetLinkURI(verifiedToken jwt.Token, l *Launch) (int, err
 	return http.StatusOK, nil
 }
 
-// Deployment ID must exist under the issuer.
+// validateDeploymentID verifies that the deployment ID exists under the issuer.
 func validateDeploymentID(verifiedToken jwt.Token, l *Launch) (int, error) {
-	// Deployment ID.
 	deploymentID, ok := verifiedToken.Get("https://purl.imsglobal.org/spec/lti/claim/deployment_id")
 	if !ok {
 		return http.StatusBadRequest, errors.New("deployment not found in request")
 	}
+
 	_, err := l.cfg.Registrations.FindDeployment(verifiedToken.Issuer(), deploymentID.(string))
 	if err != nil {
 		return http.StatusBadRequest, err
@@ -228,8 +233,8 @@ func validateDeploymentID(verifiedToken jwt.Token, l *Launch) (int, error) {
 	return http.StatusOK, nil
 }
 
-// Check for valid version and message type. Only 'Resource link launch request' (LtiResourceLinkRequest) is currently
-// supported.
+// validateVersionAndMessageType checks for a valid version and message type. Only 'Resource link launch request'
+// (LtiResourceLinkRequest) is currently supported.
 func validateVersionAndMessageType(verifiedToken jwt.Token) (int, error) {
 	ltiVersion, ok := verifiedToken.Get("https://purl.imsglobal.org/spec/lti/claim/version")
 	if !ok {
@@ -250,16 +255,18 @@ func validateVersionAndMessageType(verifiedToken jwt.Token) (int, error) {
 	return http.StatusOK, nil
 }
 
-// Check resource link and ID.
+// validateResourceLink verifies the resource link and ID.
 func validateResourceLink(verifiedToken jwt.Token) (int, error) {
 	resourceLink, ok := verifiedToken.Get("https://purl.imsglobal.org/spec/lti/claim/resource_link")
 	if !ok {
 		return http.StatusBadRequest, errors.New("lti version not found in request")
 	}
+
 	resourceLinkMap, ok := resourceLink.(map[string]interface{})
 	if !ok {
 		return http.StatusBadRequest, errors.New("resource link improperly formatted")
 	}
+
 	resourceLinkID, ok := resourceLinkMap["id"]
 	if !ok {
 		return http.StatusBadRequest, errors.New("resource id not found")
@@ -271,7 +278,7 @@ func validateResourceLink(verifiedToken jwt.Token) (int, error) {
 	return http.StatusOK, nil
 }
 
-// Parse the id_token to get JWT payload for storage.
+// getLaunchData parses the id_token to get JWT payload for storage.
 func getLaunchData(rawToken []byte) (json.RawMessage, int, error) {
 	if len(rawToken) == 0 {
 		return nil, http.StatusInternalServerError, errors.New("received empty raw token argument")
@@ -285,7 +292,7 @@ func getLaunchData(rawToken []byte) (json.RawMessage, int, error) {
 	return json.RawMessage(payload), http.StatusOK, nil
 }
 
-// Check if a string exists in a []string.
+// contains returns whether a string exists in a []string.
 func contains(n string, s []string) bool {
 	for _, v := range s {
 		if v == n {
