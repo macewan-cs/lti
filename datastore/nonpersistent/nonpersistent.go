@@ -22,7 +22,7 @@ type Store struct {
 	Registrations *sync.Map
 	Deployments   *sync.Map
 	Nonces        *sync.Map
-	LaunchDatas   *sync.Map
+	LaunchData    *sync.Map
 	AccessTokens  *sync.Map
 }
 
@@ -44,7 +44,7 @@ func New() *Store {
 		Registrations: &sync.Map{},
 		Deployments:   &sync.Map{},
 		Nonces:        &sync.Map{},
-		LaunchDatas:   &sync.Map{},
+		LaunchData:    &sync.Map{},
 		AccessTokens:  &sync.Map{},
 	}
 }
@@ -151,7 +151,7 @@ func (s *Store) StoreLaunchData(launchID string, launchData json.RawMessage) err
 		return errors.New("received empty launchData argument")
 	}
 
-	s.LaunchDatas.Store(launchID, launchData)
+	s.LaunchData.Store(launchID, launchData)
 	return nil
 }
 
@@ -161,7 +161,7 @@ func (s *Store) FindLaunchData(launchID string) (json.RawMessage, error) {
 		return nil, errors.New("received empty launchID argument")
 	}
 
-	launchData, ok := s.LaunchDatas.Load(launchID)
+	launchData, ok := s.LaunchData.Load(launchID)
 	if !ok {
 		return nil, datastore.ErrLaunchDataNotFound
 	}

@@ -24,7 +24,7 @@ import (
 // Config represents the configuration used in creating a new *Launch. New will accept the zero value of this struct,
 // and in the case of the zero value, the resulting Launch will use nonpersistent storage.
 type Config struct {
-	LaunchDatas   datastore.LaunchDataStorer
+	LaunchData    datastore.LaunchDataStorer
 	AccessTokens  datastore.AccessTokenStorer
 	Registrations datastore.RegistrationStorer
 	Nonces        datastore.NonceStorer
@@ -41,8 +41,8 @@ var maximumResourceLinkIDLength = 255
 func New(cfg Config) *Launch {
 	launch := Launch{}
 
-	if cfg.LaunchDatas == nil {
-		launch.cfg.LaunchDatas = nonpersistent.DefaultStore
+	if cfg.LaunchData == nil {
+		launch.cfg.LaunchData = nonpersistent.DefaultStore
 	}
 	if cfg.AccessTokens == nil {
 		launch.cfg.AccessTokens = nonpersistent.DefaultStore
@@ -122,7 +122,7 @@ func (l *Launch) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Store the Launch data under a unique Launch ID for future reference.
 	launchID := "lti1p3-launch-" + uuid.New().String()
-	l.cfg.LaunchDatas.StoreLaunchData(launchID, launchData)
+	l.cfg.LaunchData.StoreLaunchData(launchID, launchData)
 }
 
 // getRawToken gets the OIDC id_token.
