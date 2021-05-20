@@ -49,6 +49,7 @@ func New(cfg Config) *Launch {
 	if cfg.Nonces == nil {
 		launch.cfg.Nonces = nonpersistent.DefaultStore
 	}
+
 	return &launch
 }
 
@@ -62,7 +63,7 @@ func (l *Launch) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		err           error
 		registration  datastore.Registration
 		verifiedToken jwt.Token
-		launchMessage json.RawMessage
+		launchData    json.RawMessage
 	)
 
 	if rawToken, statusCode, err = getRawToken(r); err != nil {
@@ -110,14 +111,14 @@ func (l *Launch) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if launchMessage, statusCode, err = getLaunchData(rawToken); err != nil {
+	if launchData, statusCode, err = getLaunchData(rawToken); err != nil {
 		http.Error(w, err.Error(), statusCode)
 		return
 	}
 
 	// Store the Launch data under a unique Launch ID for future reference.
 	launchID := "lti1p3-launch-" + uuid.New().String()
-	l.cfg.LaunchDatas.StoreLaunchData(launchID, launchMessage)
+	l.cfg.LaunchDatas.StoreLaunchData(launchID, launchData)
 }
 
 // Get the OICD id_token.
@@ -270,7 +271,7 @@ func validateResourceLink(verifiedToken jwt.Token) (int, error) {
 	return http.StatusOK, nil
 }
 
-// Parse the id token payload for storage.
+// Parse the id_token to get JWT payload for storage.
 func getLaunchData(rawToken []byte) (json.RawMessage, int, error) {
 	if len(rawToken) == 0 {
 		return nil, http.StatusInternalServerError, errors.New("received empty raw token argument")
