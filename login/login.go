@@ -24,12 +24,14 @@ type Config struct {
 // New creates a new login object. If the passed Config has zero-value store interfaces, fall back on the in-memory
 // nonpersistent.DefaultStore.
 func New(cfg Config) *Login {
-	login := Login{}
+	login := Login{
+		cfg: cfg,
+	}
 
-	if cfg.Registrations == nil {
+	if login.cfg.Registrations == nil {
 		login.cfg.Registrations = nonpersistent.DefaultStore
 	}
-	if cfg.Nonces == nil {
+	if login.cfg.Nonces == nil {
 		login.cfg.Nonces = nonpersistent.DefaultStore
 	}
 	return &login

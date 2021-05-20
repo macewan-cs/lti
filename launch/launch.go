@@ -43,18 +43,20 @@ var (
 
 // New creates a *Launch, which implements the http.Handler interface for launching a tool.
 func New(cfg Config) *Launch {
-	launch := Launch{}
+	launch := Launch{
+		cfg: cfg,
+	}
 
-	if cfg.LaunchData == nil {
+	if launch.cfg.LaunchData == nil {
 		launch.cfg.LaunchData = nonpersistent.DefaultStore
 	}
-	if cfg.AccessTokens == nil {
+	if launch.cfg.AccessTokens == nil {
 		launch.cfg.AccessTokens = nonpersistent.DefaultStore
 	}
-	if cfg.Registrations == nil {
+	if launch.cfg.Registrations == nil {
 		launch.cfg.Registrations = nonpersistent.DefaultStore
 	}
-	if cfg.Nonces == nil {
+	if launch.cfg.Nonces == nil {
 		launch.cfg.Nonces = nonpersistent.DefaultStore
 	}
 
@@ -314,5 +316,6 @@ func contains(n string, s []string) bool {
 			return true
 		}
 	}
+
 	return false
 }

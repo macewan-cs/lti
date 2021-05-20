@@ -6,7 +6,6 @@
 package service
 
 import (
-	"net/http"
 	"net/url"
 
 	"github.com/lestrrat-go/jwx/jwk"
@@ -16,7 +15,7 @@ import (
 )
 
 type Config struct {
-	LaunchDatas   datastore.LaunchDataStorer
+	LaunchData    datastore.LaunchDataStorer
 	Registrations datastore.RegistrationStorer
 	AccessTokens  datastore.AccessTokenStorer
 }
@@ -28,8 +27,6 @@ type LTI struct {
 type Connector struct {
 	LTI      *LTI
 	launchID string
-	//Store
-	//Cookie
 	//SigningKeyFunc
 	scopes []url.URL
 }
@@ -49,31 +46,25 @@ type NRPS struct {
 }
 
 func NewLTI(cfg Config) *LTI {
-	lti := LTI{}
-
-	if cfg.LaunchDatas == nil {
-		lti.cfg.LaunchDatas = nonpersistent.DefaultStore
+	lti := LTI{
+		cfg: cfg,
 	}
-	if cfg.AccessTokens == nil {
+
+	if lti.cfg.LaunchData == nil {
+		lti.cfg.LaunchData = nonpersistent.DefaultStore
+	}
+	if lti.cfg.AccessTokens == nil {
 		lti.cfg.AccessTokens = nonpersistent.DefaultStore
 	}
-	if cfg.Registrations == nil {
+	if lti.cfg.Registrations == nil {
 		lti.cfg.Registrations = nonpersistent.DefaultStore
 	}
 
 	return &lti
 }
 
-func (l *LTI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-
-}
-
 func (l *LTI) NewConnector(launchID string) *Connector {
 	return nil
-}
-
-func (c *Connector) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-
 }
 
 // PlatformKey gets the Platform's public key from the Registration Keyset URL.
