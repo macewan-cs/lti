@@ -131,7 +131,7 @@ func getRawToken(r *http.Request) ([]byte, int, error) {
 	// Decode token and check for JWT format errors without verification. An external keyset is needed for verification.
 	_, err := jwt.Parse(idToken)
 	if err != nil {
-		return nil, http.StatusInternalServerError, err
+		return nil, http.StatusBadRequest, err
 	}
 
 	return idToken, http.StatusOK, nil
@@ -141,13 +141,17 @@ func getRawToken(r *http.Request) ([]byte, int, error) {
 func validateRegistration(rawToken []byte, l *Launch, r *http.Request) (datastore.Registration, int, error) {
 	token, err := jwt.Parse(rawToken)
 	if err != nil {
-		return datastore.Registration{}, http.StatusInternalServerError, err
+		return datastore.Registration{}, http.StatusBadRequest, err
 	}
 
 	issuer := token.Issuer()
 	registration, err := l.cfg.Registrations.FindRegistrationByIssuer(issuer)
 	if err != nil {
-		return datastore.Registration{}, http.StatusBadRequest, fmt.Errorf("no registration found for iss %s", issuer)
+		if err == datastore.ErrRegistrationNotFound {
+			return datastore.Registration{}, http.StatusBadRequest, fmt.Errorf("no registration found for iss %s", issuer)
+		} else {
+			return datastore.Registration{}, http.StatusInternalServerError, err
+		}
 	}
 
 	return registration, http.StatusOK, nil
@@ -158,13 +162,15 @@ func validateSignature(rawToken []byte, registration datastore.Registration, r *
 	// Get keyset from the Platform for verification.
 	keyset, err := jwk.Fetch(context.Background(), registration.KeysetURI.String())
 	if err != nil {
-		return nil, http.StatusNotFound, err
+		// Since the KeysetURI is part of the registration, a failure to retrieve it should be reported as an
+		// internal server error.
+		return nil, http.StatusInternalServerError, err
 	}
 
 	// Perform the signature check.
 	verifiedToken, err := jwt.Parse(rawToken, jwt.WithKeySet(keyset))
 	if err != nil {
-		return nil, http.StatusInternalServerError, err
+		return nil, http.StatusBadRequest, err
 	}
 
 	return verifiedToken, http.StatusOK, nil
@@ -189,7 +195,7 @@ func validateClientID(verifiedToken jwt.Token, registration datastore.Registrati
 	audience := verifiedToken.Audience()
 	found := contains(registration.ClientID, audience)
 	if !found {
-		return http.StatusBadRequest, errors.New("client id not registered for this issuer")
+		return http.StatusBadRequest, errors.New("client ID not registered for this issuer")
 	}
 
 	return http.StatusOK, nil
@@ -200,7 +206,7 @@ func validateClientID(verifiedToken jwt.Token, registration datastore.Registrati
 func validateNonceAndTargetLinkURI(verifiedToken jwt.Token, l *Launch) (int, error) {
 	targetLinkURI, ok := verifiedToken.Get("https://purl.imsglobal.org/spec/lti/claim/target_link_uri")
 	if !ok {
-		return http.StatusBadRequest, errors.New("target link uri not found in request")
+		return http.StatusBadRequest, errors.New("target link URI not found in request")
 	}
 
 	nonce, ok := verifiedToken.Get("nonce")
@@ -209,10 +215,11 @@ func validateNonceAndTargetLinkURI(verifiedToken jwt.Token, l *Launch) (int, err
 	}
 	found, err := l.cfg.Nonces.TestAndClearNonce(nonce.(string), targetLinkURI.(string))
 	if err != nil {
-		return http.StatusInternalServerError, err
-	}
-	if !found {
-		return http.StatusBadRequest, err
+		if err == datastore.ErrNonceNotFound || err == datastore.ErrNonceTargetLinkURIMismatch {
+			return http.StatusBadRequest, err
+		} else {
+			return http.StatusInternalServerError, err
+		}
 	}
 
 	return http.StatusOK, nil
@@ -227,7 +234,11 @@ func validateDeploymentID(verifiedToken jwt.Token, l *Launch) (int, error) {
 
 	_, err := l.cfg.Registrations.FindDeployment(verifiedToken.Issuer(), deploymentID.(string))
 	if err != nil {
-		return http.StatusBadRequest, err
+		if err == datastore.ErrDeploymentNotFound {
+			return http.StatusBadRequest, err
+		} else {
+			return http.StatusInternalServerError, err
+		}
 	}
 
 	return http.StatusOK, nil
@@ -238,7 +249,7 @@ func validateDeploymentID(verifiedToken jwt.Token, l *Launch) (int, error) {
 func validateVersionAndMessageType(verifiedToken jwt.Token) (int, error) {
 	ltiVersion, ok := verifiedToken.Get("https://purl.imsglobal.org/spec/lti/claim/version")
 	if !ok {
-		return http.StatusBadRequest, errors.New("lti version not found in request")
+		return http.StatusBadRequest, errors.New("LTI version not found in request")
 	}
 	if ltiVersion != "1.3.0" {
 		return http.StatusBadRequest, errors.New("compatible version not found in request")
@@ -259,7 +270,7 @@ func validateVersionAndMessageType(verifiedToken jwt.Token) (int, error) {
 func validateResourceLink(verifiedToken jwt.Token) (int, error) {
 	resourceLink, ok := verifiedToken.Get("https://purl.imsglobal.org/spec/lti/claim/resource_link")
 	if !ok {
-		return http.StatusBadRequest, errors.New("lti version not found in request")
+		return http.StatusBadRequest, errors.New("resource link not found in request")
 	}
 
 	resourceLinkMap, ok := resourceLink.(map[string]interface{})
@@ -269,10 +280,10 @@ func validateResourceLink(verifiedToken jwt.Token) (int, error) {
 
 	resourceLinkID, ok := resourceLinkMap["id"]
 	if !ok {
-		return http.StatusBadRequest, errors.New("resource id not found")
+		return http.StatusBadRequest, errors.New("resource link ID not found")
 	}
 	if len(resourceLinkID.(string)) > maximumResourceLinkIDLength {
-		return http.StatusBadRequest, fmt.Errorf("exceeds maximum length (%d)", maximumResourceLinkIDLength)
+		return http.StatusBadRequest, fmt.Errorf("resource link ID exceeds maximum length (%d)", maximumResourceLinkIDLength)
 	}
 
 	return http.StatusOK, nil
@@ -281,12 +292,12 @@ func validateResourceLink(verifiedToken jwt.Token) (int, error) {
 // getLaunchData parses the id_token to get JWT payload for storage.
 func getLaunchData(rawToken []byte) (json.RawMessage, int, error) {
 	if len(rawToken) == 0 {
-		return nil, http.StatusInternalServerError, errors.New("received empty raw token argument")
+		return nil, http.StatusBadRequest, errors.New("received empty raw token argument")
 	}
 	rawTokenParts := strings.SplitN(string(rawToken), ".", 3)
 	payload, err := base64.RawURLEncoding.DecodeString(rawTokenParts[1])
 	if err != nil {
-		return nil, http.StatusInternalServerError, err
+		return nil, http.StatusBadRequest, err
 	}
 
 	return json.RawMessage(payload), http.StatusOK, nil
