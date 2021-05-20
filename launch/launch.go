@@ -35,10 +35,14 @@ type Launch struct {
 	cfg Config
 }
 
+// LaunchContextKey is used as the key to store the launch ID in the request context.
+type LaunchContextKey string
+
 var (
 	maximumResourceLinkIDLength = 255
 	supportedLTIVersion         = "1.3.0"
 	launchIDPrefix              = "lti1p3-launch-"
+	launchContextKey            = "LaunchID"
 )
 
 // New creates a *Launch, which implements the http.Handler interface for launching a tool.
@@ -129,6 +133,9 @@ func (l *Launch) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Store the Launch data under a unique Launch ID for future reference.
 	launchID := launchIDPrefix + uuid.New().String()
 	l.cfg.LaunchData.StoreLaunchData(launchID, launchData)
+
+	// Put the launch ID in the request context for subsequent handlers.
+	r = r.WithContext(contextWithLaunchID(r.Context(), launchID))
 }
 
 // getRawToken gets the OIDC id_token.
@@ -318,4 +325,10 @@ func contains(n string, s []string) bool {
 	}
 
 	return false
+}
+
+// withLaunchID puts the launch ID into the given context.
+func contextWithLaunchID(ctx context.Context, launchID string) context.Context {
+	key := LaunchContextKey(launchContextKey)
+	return context.WithValue(ctx, key, launchID)
 }
