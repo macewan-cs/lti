@@ -217,7 +217,7 @@ func validateNonceAndTargetLinkURI(verifiedToken jwt.Token, l *Launch) (int, err
 	if !ok {
 		return http.StatusBadRequest, errors.New("nonce not found in request")
 	}
-	found, err := l.cfg.Nonces.TestAndClearNonce(nonce.(string), targetLinkURI.(string))
+	err := l.cfg.Nonces.TestAndClearNonce(nonce.(string), targetLinkURI.(string))
 	if err != nil {
 		if err == datastore.ErrNonceNotFound || err == datastore.ErrNonceTargetLinkURIMismatch {
 			return http.StatusBadRequest, err

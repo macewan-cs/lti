@@ -61,7 +61,7 @@ var ErrNonceTargetLinkURIMismatch = errors.New("nonce found with mismatched targ
 
 type NonceStorer interface {
 	StoreNonce(nonce string, targetLinkURI string) error
-	TestAndClearNonce(nonce string, issuer string) (bool, error)
+	TestAndClearNonce(nonce string, issuer string) error
 }
 
 var ErrLaunchDataNotFound = errors.New("launch data not found")

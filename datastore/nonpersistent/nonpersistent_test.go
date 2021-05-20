@@ -114,7 +114,6 @@ func TestStoreAndFindDeploymentByDeploymentID(t *testing.T) {
 func TestStoreAndTestAndClearNonce(t *testing.T) {
 	issuer := "test-issuer"
 	nonce := "dGVzdC1ub25jZQ=="
-	expected := true
 
 	npStore := New()
 
@@ -133,22 +132,18 @@ func TestStoreAndTestAndClearNonce(t *testing.T) {
 		t.Fatalf("store nonce error: %v", err)
 	}
 
-	actual, err := npStore.TestAndClearNonce(nonce, issuer)
+	err = npStore.TestAndClearNonce(nonce, issuer)
 	if err != nil {
 		t.Fatalf("test and clear nonce error: %v", err)
 	}
-	if actual != expected {
-		t.Fatal("cannot clear, nonce not found")
-	}
 
 	// Test the double-clearing of the nonce.
-	expected = false
-	actual, err = npStore.TestAndClearNonce(nonce, issuer)
-	if (err != datastore.ErrNonceNotFound) || (actual != expected) {
+	err = npStore.TestAndClearNonce(nonce, issuer)
+	if err != datastore.ErrNonceNotFound {
 		t.Fatalf("test and clear nonce error: %v", err)
 	}
 
-	_, err = npStore.TestAndClearNonce("unknown"+nonce, issuer)
+	err = npStore.TestAndClearNonce("unknown"+nonce, issuer)
 	if err != datastore.ErrNonceNotFound {
 		t.Error("unexpected error value for nonexistent nonce")
 	}

@@ -119,27 +119,28 @@ func (s *Store) StoreNonce(nonce, targetLinkURI string) error {
 	return nil
 }
 
-// TestAndClearNonce looks up a Nonce, returns whether it was found or not, and clears the entry if found. If the nonce
-// wasn't found, it returns the datastore error ErrNonceNotFound.
-func (s *Store) TestAndClearNonce(nonce, targetLinkURI string) (bool, error) {
+// TestAndClearNonce looks up a nonce, clears the entry if found, and returns whether it was found via the error
+// return. If the nonce wasn't found, it returns the datastore error ErrNonceNotFound. If it was found, it returns nil.
+func (s *Store) TestAndClearNonce(nonce, targetLinkURI string) error {
 	if nonce == "" {
-		return false, errors.New("received empty nonce argument")
+		return errors.New("received empty nonce argument")
 	}
 	if targetLinkURI == "" {
-		return false, errors.New("received empty target link uri argument")
+		return errors.New("received empty target link uri argument")
 	}
 
 	checkURI, ok := s.Nonces.Load(nonce)
 	if !ok {
-		return false, datastore.ErrNonceNotFound
-	}
-	if checkURI != targetLinkURI {
-		s.Nonces.Delete(nonce)
-		return false, datastore.ErrNonceTargetLinkURIMismatch
+		return datastore.ErrNonceNotFound
 	}
 
 	s.Nonces.Delete(nonce)
-	return true, nil
+
+	if checkURI != targetLinkURI {
+		return datastore.ErrNonceTargetLinkURIMismatch
+	}
+
+	return nil
 }
 
 // StoreLaunchData stores the launch data, i.e. the id_token JWT.
