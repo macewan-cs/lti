@@ -35,7 +35,11 @@ type Launch struct {
 	cfg Config
 }
 
-var maximumResourceLinkIDLength = 255
+var (
+	maximumResourceLinkIDLength = 255
+	supportedLTIVersion         = "1.3.0"
+	launchIDPrefix              = "lti1p3-launch-"
+)
 
 // New creates a *Launch, which implements the http.Handler interface for launching a tool.
 func New(cfg Config) *Launch {
@@ -121,7 +125,7 @@ func (l *Launch) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Store the Launch data under a unique Launch ID for future reference.
-	launchID := "lti1p3-launch-" + uuid.New().String()
+	launchID := launchIDPrefix + uuid.New().String()
 	l.cfg.LaunchData.StoreLaunchData(launchID, launchData)
 }
 
@@ -251,7 +255,7 @@ func validateVersionAndMessageType(verifiedToken jwt.Token) (int, error) {
 	if !ok {
 		return http.StatusBadRequest, errors.New("LTI version not found in request")
 	}
-	if ltiVersion != "1.3.0" {
+	if ltiVersion != supportedLTIVersion {
 		return http.StatusBadRequest, errors.New("compatible version not found in request")
 	}
 
