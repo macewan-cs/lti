@@ -10,6 +10,7 @@ package connector
 import (
 	"context"
 	"errors"
+	"log"
 	"net/url"
 
 	"github.com/lestrrat-go/jwx/jwk"
@@ -28,10 +29,11 @@ type Config struct {
 
 // A Connector implements the base that underpins LTI 1.3 Advantage, i.e. AGS or NRPS.
 type Connector struct {
-	cfg      Config
-	LaunchID string
+	cfg         Config
+	LaunchID    string
+	LaunchToken jwt.Token
 	//SigningKeyFunc
-	Scopes []url.URL
+	//Scopes []url.URL
 }
 
 // AGS implements Assignment & Grades Services functions.
@@ -39,15 +41,15 @@ type AGS struct {
 	LineItem  url.URL
 	LineItems []url.URL
 	Endpoint  url.URL
-	target    Connector
-	token     jwt.Token
+	Target    Connector
+	//token     jwt.Token
 }
 
 // NRPS implements Names & Roles Provisioning Services functions.
 type NRPS struct {
 	Endpoint url.URL
-	target   Connector
-	token    jwt.Token
+	Target   Connector
+	//token    jwt.Token
 }
 
 // New creates a *Connector. To function as expected, a valid launchID must be supplied.
@@ -67,31 +69,43 @@ func New(cfg Config, launchID string) *Connector {
 		connector.cfg.Registrations = nonpersistent.DefaultStore
 	}
 
+	// New could perhaps return (*Connector, error).
+	err := connector.setTokenFromLaunchData(launchID)
+	if err != nil {
+		log.Printf("connector made with blank token using launch ID %s", launchID)
+	}
+
 	return &connector
 }
 
-// getRegistrationFromLaunchID
-func getRegistrationFromLaunchID(c *Connector) (datastore.Registration, error) {
+// setTokenFromLaunchData populates the Connector's token with stored launch data that is derived from the OIDC id_token
+// payload. That id_token had its authenticity previously verified as part of the launch process.
+func (c *Connector) setTokenFromLaunchData(launchId string) error {
 	if c.LaunchID == "" {
-		return datastore.Registration{}, errors.New("received empty launch ID")
+		return errors.New("received empty launch ID")
 	}
 
 	rawLaunchData, err := c.cfg.LaunchData.FindLaunchData(c.LaunchID)
 	if err != nil {
-		return datastore.Registration{}, err
+		return err
 	}
-
 	launchData, err := rawLaunchData.MarshalJSON()
 	if err != nil {
-		return datastore.Registration{}, errors.New("error decoding launch data")
+		return errors.New("error decoding launch data")
 	}
-
-	idToken, err := jwt.Parse(launchData)
+	idTokenPayload, err := jwt.Parse(launchData)
 	if err != nil {
-		return datastore.Registration{}, errors.New("error encoding launch data token")
+		return errors.New("error encoding launch data token")
 	}
 
-	registration, err := c.cfg.Registrations.FindRegistrationByIssuer(idToken.Issuer())
+	c.LaunchToken = idTokenPayload
+
+	return nil
+}
+
+// getRegistration uses the Connector's LaunchToken issuer to get that associated registeration.
+func (c *Connector) getRegistration() (datastore.Registration, error) {
+	registration, err := c.cfg.Registrations.FindRegistrationByIssuer(c.LaunchToken.Issuer())
 	if err != nil {
 		return datastore.Registration{}, err
 	}
@@ -101,7 +115,7 @@ func getRegistrationFromLaunchID(c *Connector) (datastore.Registration, error) {
 
 // PlatformKey gets the Platform's public key from the Registration Keyset URL.
 func (c *Connector) PlatformKey() (jwk.Set, error) {
-	registration, err := getRegistrationFromLaunchID(c)
+	registration, err := c.getRegistration()
 	if err != nil {
 		return nil, err
 	}
@@ -114,13 +128,31 @@ func (c *Connector) PlatformKey() (jwk.Set, error) {
 	return keyset, nil
 }
 
-// UpgradeAGS provides a Connector upgraded for AGS calls.
-func (c *Connector) UpgradeAGS() (*AGS, error) {
-	return nil, nil
-}
-
 // UpgradeNRPS provides a Connector upgraded for NRPS calls.
 func (c *Connector) UpgradeNRPS() (*NRPS, error) {
+	// Check for endpoint.
+	membershipClaim, ok := c.LaunchToken.Get("https://purl.imsglobal.org/spec/lti-nrps/claim/namesroleservice")
+	if !ok {
+		return nil, errors.New("NRPS endpoint not found in launch")
+	}
+	membershipMap, ok := membershipClaim.(map[string]interface{})
+	if !ok {
+		return nil, errors.New("names and roles information improperly formatted")
+	}
+	membershipVal, ok := membershipMap["context_memberships_url"]
+	if !ok {
+		return nil, errors.New("names and roles endpoint not found")
+	}
+	membershipURI, err := url.Parse(membershipVal.(string))
+	if err != nil {
+		return nil, errors.New("names and roles endpoint improperly formatted")
+	}
+
+	return &NRPS{Endpoint: *membershipURI, Target: *c}, nil
+}
+
+// UpgradeAGS provides a Connector upgraded for AGS calls.
+func (c *Connector) UpgradeAGS() (*AGS, error) {
 	return nil, nil
 }
 
