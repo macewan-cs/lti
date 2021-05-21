@@ -10,6 +10,7 @@ package connector
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net/url"
 
@@ -42,6 +43,7 @@ type AGS struct {
 	LineItems []url.URL
 	Endpoint  url.URL
 	Target    Connector
+	Scopes    []url.URL
 	//token     jwt.Token
 }
 
@@ -70,7 +72,7 @@ func New(cfg Config, launchID string) *Connector {
 	}
 
 	// New could perhaps return (*Connector, error).
-	err := connector.setTokenFromLaunchData(launchID)
+	err := connector.setLaunchTokenFromLaunchData(launchID)
 	if err != nil {
 		log.Printf("connector made with blank token using launch ID %s", launchID)
 	}
@@ -80,7 +82,7 @@ func New(cfg Config, launchID string) *Connector {
 
 // setTokenFromLaunchData populates the Connector's token with stored launch data that is derived from the OIDC id_token
 // payload. That id_token had its authenticity previously verified as part of the launch process.
-func (c *Connector) setTokenFromLaunchData(launchId string) error {
+func (c *Connector) setLaunchTokenFromLaunchData(launchId string) error {
 	if c.LaunchID == "" {
 		return errors.New("received empty launch ID")
 	}
@@ -131,28 +133,42 @@ func (c *Connector) PlatformKey() (jwk.Set, error) {
 // UpgradeNRPS provides a Connector upgraded for NRPS calls.
 func (c *Connector) UpgradeNRPS() (*NRPS, error) {
 	// Check for endpoint.
-	membershipClaim, ok := c.LaunchToken.Get("https://purl.imsglobal.org/spec/lti-nrps/claim/namesroleservice")
+	nrpsClaim, ok := c.LaunchToken.Get("https://purl.imsglobal.org/spec/lti-nrps/claim/namesroleservice")
 	if !ok {
-		return nil, errors.New("NRPS endpoint not found in launch")
+		return nil, errors.New("names and roles endpoint not found in launch data")
 	}
-	membershipMap, ok := membershipClaim.(map[string]interface{})
+	nrpsMap, ok := nrpsClaim.(map[string]interface{})
 	if !ok {
 		return nil, errors.New("names and roles information improperly formatted")
 	}
-	membershipVal, ok := membershipMap["context_memberships_url"]
+	nrpsVal, ok := nrpsMap["context_memberships_url"]
 	if !ok {
 		return nil, errors.New("names and roles endpoint not found")
 	}
-	membershipURI, err := url.Parse(membershipVal.(string))
+	nrpsURI, err := url.Parse(nrpsVal.(string))
 	if err != nil {
 		return nil, errors.New("names and roles endpoint improperly formatted")
 	}
 
-	return &NRPS{Endpoint: *membershipURI, Target: *c}, nil
+	return &NRPS{Endpoint: *nrpsURI, Target: *c}, nil
 }
 
 // UpgradeAGS provides a Connector upgraded for AGS calls.
 func (c *Connector) UpgradeAGS() (*AGS, error) {
+	// Check for endpoint.
+	agsClaim, ok := c.LaunchToken.Get("https://purl.imsglobal.org/spec/lti-ags/claim/endpoint")
+	if !ok {
+		return nil, errors.New("assignments and grades endpoint not found in launch data")
+	}
+	agsMap, ok := agsClaim.(map[string]interface{})
+	if !ok {
+		return nil, errors.New("assignments and grades information improperly formatted")
+	}
+
+	for key, val := range agsMap {
+		fmt.Println(key, val)
+	}
+
 	return nil, nil
 }
 
