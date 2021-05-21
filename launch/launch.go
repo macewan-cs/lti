@@ -43,7 +43,7 @@ var (
 	maximumResourceLinkIDLength = 255
 	supportedLTIVersion         = "1.3.0"
 	launchIDPrefix              = "lti1p3-launch-"
-	launchContextKey            = "LaunchID"
+	DefaultLaunchContextKey     = "LaunchID"
 )
 
 // New creates a *Launch, which implements the http.Handler interface for launching a tool.
@@ -331,8 +331,9 @@ func contains(n string, s []string) bool {
 	return false
 }
 
-// withLaunchID puts the launch ID into the given context.
+// contextWithLaunchID puts the launch ID into the given context.
 func contextWithLaunchID(ctx context.Context, launchID string) context.Context {
-	key := LaunchContextKey(launchContextKey)
+	key := LaunchContextKey(DefaultLaunchContextKey)
+
 	return context.WithValue(ctx, key, launchID)
 }

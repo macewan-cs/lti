@@ -31,3 +31,7 @@ func NewLaunchConfig() launch.Config {
 func NewLaunch(cfg launch.Config, next http.HandlerFunc) *launch.Launch {
 	return launch.New(cfg, next)
 }
+
+func GetLaunchContextKey() launch.LaunchContextKey {
+	return launch.LaunchContextKey(launch.DefaultLaunchContextKey)
+}
