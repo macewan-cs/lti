@@ -32,7 +32,8 @@ type Config struct {
 
 // A Launch implements an external application's role in LTI standard's launch flow.
 type Launch struct {
-	cfg Config
+	cfg  Config
+	next http.HandlerFunc
 }
 
 // LaunchContextKey is used as the key to store the launch ID in the request context.
@@ -46,9 +47,10 @@ var (
 )
 
 // New creates a *Launch, which implements the http.Handler interface for launching a tool.
-func New(cfg Config) *Launch {
+func New(cfg Config, next http.HandlerFunc) *Launch {
 	launch := Launch{
-		cfg: cfg,
+		cfg:  cfg,
+		next: next,
 	}
 
 	if launch.cfg.LaunchData == nil {
@@ -136,6 +138,8 @@ func (l *Launch) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Put the launch ID in the request context for subsequent handlers.
 	r = r.WithContext(contextWithLaunchID(r.Context(), launchID))
+
+	l.next(w, r)
 }
 
 // getRawToken gets the OIDC id_token.
