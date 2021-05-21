@@ -30,20 +30,22 @@ type Config struct {
 	Nonces        datastore.NonceStorer
 }
 
-// A Launch implements an external application's role in LTI standard's launch flow.
+// A Launch implements an external application's role in the LTI specification's launch flow.
 type Launch struct {
 	cfg  Config
 	next http.HandlerFunc
 }
 
 // LaunchContextKey is used as the key to store the launch ID in the request context.
-type LaunchContextKey string
+type LaunchContextKeyType string
+
+// This is the actual value used for the context key.
+const LaunchContextKey = LaunchContextKeyType("LaunchID")
 
 var (
 	maximumResourceLinkIDLength = 255
 	supportedLTIVersion         = "1.3.0"
 	launchIDPrefix              = "lti1p3-launch-"
-	DefaultLaunchContextKey     = "LaunchID"
 )
 
 // New creates a *Launch, which implements the http.Handler interface for launching a tool.
@@ -333,7 +335,7 @@ func contains(n string, s []string) bool {
 
 // contextWithLaunchID puts the launch ID into the given context.
 func contextWithLaunchID(ctx context.Context, launchID string) context.Context {
-	key := LaunchContextKey(DefaultLaunchContextKey)
+	key := LaunchContextKey
 
 	return context.WithValue(ctx, key, launchID)
 }

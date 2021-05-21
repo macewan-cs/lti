@@ -10,8 +10,10 @@
 package lti
 
 import (
+	"context"
 	"net/http"
 
+	"github.com/macewan-cs/lti/connector"
 	"github.com/macewan-cs/lti/launch"
 	"github.com/macewan-cs/lti/login"
 )
@@ -32,6 +34,27 @@ func NewLaunch(cfg launch.Config, next http.HandlerFunc) *launch.Launch {
 	return launch.New(cfg, next)
 }
 
-func GetLaunchContextKey() launch.LaunchContextKey {
-	return launch.LaunchContextKey(launch.DefaultLaunchContextKey)
+func GetLaunchContextKey() launch.LaunchContextKeyType {
+	return launch.LaunchContextKey
+}
+
+func LaunchIDFromContext(ctx context.Context) string {
+	launchID := ctx.Value(GetLaunchContextKey())
+	if launchID == nil {
+		return ""
+	}
+
+	return launchID.(string)
+}
+
+func LaunchIDFromRequest(r *http.Request) string {
+	return LaunchIDFromContext(r.Context())
+}
+
+func NewConnectorConfig() connector.Config {
+	return connector.Config{}
+}
+
+func NewConnector(cfg connector.Config, launchID string) *connector.Connector {
+	return connector.New(cfg, launchID)
 }
