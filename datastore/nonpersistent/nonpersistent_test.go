@@ -148,3 +148,56 @@ func TestStoreAndTestAndClearNonce(t *testing.T) {
 		t.Error("unexpected error value for nonexistent nonce")
 	}
 }
+
+func TestStoreAndFindAccessToken(t *testing.T) {
+	tokenURI := "https://domain.tld/token"
+	clientID := "abcdef123456"
+	scopes := []string{"https://scope/1.readonly", "https://scope/2.delete"}
+	expected := "aaaa1.bbbb2.cccc3"
+
+	npStore := New()
+
+	err := npStore.StoreAccessToken("", clientID, scopes, expected)
+	if err.Error() != "received empty tokenURI argument" {
+		t.Error("error not reported for empty tokenURI")
+	}
+	err = npStore.StoreAccessToken(tokenURI, "", scopes, expected)
+	if err.Error() != "received empty clientID argument" {
+		t.Error("error not reported for empty clientID")
+	}
+	err = npStore.StoreAccessToken(tokenURI, clientID, []string{}, expected)
+	if err.Error() != "received empty scopes argument" {
+		t.Error("error not reported for empty scopes")
+	}
+	err = npStore.StoreAccessToken(tokenURI, clientID, scopes, "")
+	if err.Error() != "received empty accessToken argument" {
+		t.Error("error not reported for empty token string")
+	}
+
+	err = npStore.StoreAccessToken(tokenURI, clientID, scopes, expected)
+	if err != nil {
+		t.Fatal("access token storage failed")
+	}
+
+	_, err = npStore.FindAccessToken("", clientID, scopes)
+	if err.Error() != "received empty tokenURI argument" {
+		t.Error("error not reported for empty tokenURI")
+	}
+	_, err = npStore.FindAccessToken(tokenURI, "", scopes)
+	if err.Error() != "received empty clientID argument" {
+		t.Error("error not reported for empty clientID")
+	}
+	_, err = npStore.FindAccessToken(tokenURI, clientID, []string{})
+	if err.Error() != "received empty scopes argument" {
+		t.Error("error not reported for empty scopes")
+	}
+
+	actual, err := npStore.FindAccessToken(tokenURI, clientID, scopes)
+	if err != nil {
+		t.Fatal("access token retrieval failed")
+	}
+
+	if actual != expected {
+		t.Fatalf("incorrect token returned, wanted %s got %s", expected, actual)
+	}
+}

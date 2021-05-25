@@ -28,10 +28,10 @@ type Store struct {
 
 // AccessToken structures values saved in-memory by the nonpersistent store.
 type AccessToken struct {
-	TokenURI string
-	ClientID string
-	Scopes   []string
-	Token    string
+	TokenURI string   `json:"tokenuri"`
+	ClientID string   `json:"clientid"`
+	Scopes   []string `json:"scopes"`
+	Token    string   `json:"token"`
 }
 
 // DefaultStore provides a single default datastore as a package variable so that other LTI functions can
@@ -188,11 +188,16 @@ func (s *Store) StoreAccessToken(tokenURI string, clientID string, scopes []stri
 		return errors.New("received empty accessToken argument")
 	}
 
-	storeValue := AccessToken{
+	storeToken := AccessToken{
 		TokenURI: tokenURI,
 		ClientID: clientID,
 		Scopes:   scopes,
 		Token:    accessToken,
+	}
+
+	storeValue, err := json.Marshal(storeToken)
+	if err != nil {
+		return errors.New("error encoding access token to store")
 	}
 
 	s.AccessTokens.Store(accessTokenIndex(tokenURI, clientID, scopes), storeValue)
@@ -201,5 +206,32 @@ func (s *Store) StoreAccessToken(tokenURI string, clientID string, scopes []stri
 
 // StoreAccessToken retrieves bearer tokens for potential reuse.
 func (s *Store) FindAccessToken(tokenURI string, clientID string, scopes []string) (string, error) {
-	return "", nil
+	if tokenURI == "" {
+		return "", errors.New("received empty tokenURI argument")
+	}
+	if clientID == "" {
+		return "", errors.New("received empty clientID argument")
+	}
+	if len(scopes) == 0 {
+		return "", errors.New("received empty scopes argument")
+	}
+
+	index := accessTokenIndex(tokenURI, clientID, scopes)
+	storeValue, ok := s.AccessTokens.Load(index)
+	if !ok {
+		return "", errors.New("no access token found")
+	}
+
+	storeBytes, ok := storeValue.([]byte)
+	if !ok {
+		return "", errors.New("could not retrieve token")
+	}
+
+	var accessToken AccessToken
+	err := json.Unmarshal(storeBytes, &accessToken)
+	if err != nil {
+		return "", errors.New("could not decode token")
+	}
+
+	return accessToken.Token, nil
 }
