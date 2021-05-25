@@ -25,7 +25,6 @@ import (
 // and in the case of the zero value, the resulting Launch will use nonpersistent storage.
 type Config struct {
 	LaunchData    datastore.LaunchDataStorer
-	AccessTokens  datastore.AccessTokenStorer
 	Registrations datastore.RegistrationStorer
 	Nonces        datastore.NonceStorer
 }
@@ -57,9 +56,6 @@ func New(cfg Config, next http.HandlerFunc) *Launch {
 
 	if launch.cfg.LaunchData == nil {
 		launch.cfg.LaunchData = nonpersistent.DefaultStore
-	}
-	if launch.cfg.AccessTokens == nil {
-		launch.cfg.AccessTokens = nonpersistent.DefaultStore
 	}
 	if launch.cfg.Registrations == nil {
 		launch.cfg.Registrations = nonpersistent.DefaultStore
