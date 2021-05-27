@@ -170,30 +170,21 @@ func accessTokenIndex(tokenURI, clientID string, scopes []string) string {
 // func (s *Store) StoreAccessToken(tokenURI, clientID string, scopes []string, accessToken, expiresIn string) error {
 func (s *Store) StoreAccessToken(token datastore.AccessToken) error {
 	if token.TokenURI == "" {
-		return errors.New("received empty tokenURI argument")
+		return errors.New("received empty tokenURI")
 	}
 	if token.ClientID == "" {
-		return errors.New("received empty clientID argument")
+		return errors.New("received empty clientID")
 	}
 	if len(token.Scopes) == 0 {
-		return errors.New("received empty scopes argument")
+		return errors.New("received empty scopes")
 	}
 	if token.Token == "" {
-		return errors.New("received empty accessToken argument")
+		return errors.New("received empty accessToken")
 	}
-	// Expiry period is specified in seconds.
-	// expires, err := time.ParseDuration(expiresIn + "s")
-	// if err != nil {
-	// 	return errors.New("cannot determine token expiry time")
-	// }
 
-	// storeToken := datastore.AccessToken{
-	// 	TokenURI:   tokenURI,
-	// 	ClientID:   clientID,
-	// 	Scopes:     scopes,
-	// 	Token:      accessToken,
-	// 	ExpiryTime: time.Now().Add(expires),
-	// }
+	// Scope sorting.
+	// Should be in connector, if library user doesn't use nonpersistent storage?
+	// sort.Strings(token.Scopes)
 
 	storeValue, err := json.Marshal(token)
 	if err != nil {
@@ -206,35 +197,35 @@ func (s *Store) StoreAccessToken(token datastore.AccessToken) error {
 
 // StoreAccessToken retrieves bearer tokens for potential reuse.
 //func (s *Store) FindAccessToken(tokenURI, clientID string, scopes []string) (string, error) {
-func (s *Store) FindAccessToken(token datastore.AccessToken) (string, error) {
+func (s *Store) FindAccessToken(token datastore.AccessToken) (datastore.AccessToken, error) {
 	if token.TokenURI == "" {
-		return "", errors.New("received empty tokenURI argument")
+		return datastore.AccessToken{}, errors.New("received empty tokenURI")
 	}
 	if token.ClientID == "" {
-		return "", errors.New("received empty clientID argument")
+		return datastore.AccessToken{}, errors.New("received empty clientID")
 	}
 	if len(token.Scopes) == 0 {
-		return "", errors.New("received empty scopes argument")
+		return datastore.AccessToken{}, errors.New("received empty scopes")
 	}
 
 	index := accessTokenIndex(token.TokenURI, token.ClientID, token.Scopes)
 	storeValue, ok := s.AccessTokens.Load(index)
 	if !ok {
-		return "", errors.New("no access token found")
+		return datastore.AccessToken{}, errors.New("no access token found")
 	}
 	storeBytes, ok := storeValue.([]byte)
 	if !ok {
-		return "", errors.New("could not retrieve access token")
+		return datastore.AccessToken{}, errors.New("could not retrieve access token")
 	}
 
 	var accessToken datastore.AccessToken
 	err := json.Unmarshal(storeBytes, &accessToken)
 	if err != nil {
-		return "", errors.New("could not decode access token")
+		return datastore.AccessToken{}, errors.New("could not decode access token")
 	}
 	if accessToken.ExpiryTime.Before(time.Now()) {
-		return "", errors.New("access token has expired")
+		return datastore.AccessToken{}, errors.New("access token has expired")
 	}
 
-	return accessToken.Token, nil
+	return accessToken, nil
 }

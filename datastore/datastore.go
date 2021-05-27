@@ -25,7 +25,6 @@ type Registration struct {
 }
 
 // A Deployment contains that details that identify the platform-tool integration for a message.
-//
 // Source: http://www.imsglobal.org/spec/lti/v1p3/#lti-deployment-id-claim.
 type Deployment struct {
 	DeploymentID string
@@ -66,8 +65,10 @@ type RegistrationStorer interface {
 	FindDeployment(issuer string, deploymentID string) (Deployment, error)
 }
 
-var ErrNonceNotFound = errors.New("nonce not found")
-var ErrNonceTargetLinkURIMismatch = errors.New("nonce found with mismatched target link uri")
+var (
+	ErrNonceNotFound              = errors.New("nonce not found")
+	ErrNonceTargetLinkURIMismatch = errors.New("nonce found with mismatched target link uri")
+)
 
 type NonceStorer interface {
 	StoreNonce(nonce string, targetLinkURI string) error
@@ -84,8 +85,6 @@ type LaunchDataStorer interface {
 var ErrAccessTokenNotFound = errors.New("access token not found")
 
 type AccessTokenStorer interface {
-	// StoreAccessToken(tokenURI string, clientID string, scopes []string, accessToken string, expiresIn string) error
-	// FindAccessToken(tokenURI string, clientID string, scopes []string) (string, error)
 	StoreAccessToken(token AccessToken) error
-	FindAccessToken(token AccessToken) (string, error)
+	FindAccessToken(token AccessToken) (AccessToken, error)
 }

@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -50,7 +51,7 @@ type Connector struct {
 	LaunchID    string
 	LaunchToken jwt.Token
 	SigningKey  *rsa.PrivateKey
-	AccessToken string
+	AccessToken datastore.AccessToken
 	//SigningKeyFunc func([]byte) (*rsa.PrivateKey, error)
 }
 
@@ -140,7 +141,7 @@ func (c *Connector) setLaunchTokenFromLaunchData(launchId string) error {
 	return nil
 }
 
-// getRegistration uses the Connector's LaunchToken issuer to get that associated registeration.
+// getRegistration uses the Connector's LaunchToken issuer to get the associated registration.
 func (c *Connector) getRegistration() (datastore.Registration, error) {
 	registration, err := c.cfg.Registrations.FindRegistrationByIssuer(c.LaunchToken.Issuer())
 	if err != nil {
@@ -208,22 +209,105 @@ func (c *Connector) UpgradeAGS() (*AGS, error) {
 }
 
 // checkAccessTokenStore looks for a suitable, non-expired access token in storage.
-// func (c *Connector) checkAccessTokenStore(tokenURI, clientID string, scopes []string) string {
-// 	token, err := c.cfg.AccessTokens.FindAccessToken(tokenURI, clientID, scopes)
-// 	if err != nil {
-// 		return nil
-// 	}
+func (c *Connector) checkAccessTokenStore(tokenURI, clientID string, scopes []string) (datastore.AccessToken, error) {
+	searchToken := datastore.AccessToken{
+		TokenURI: tokenURI,
+		ClientID: clientID,
+		Scopes:   scopes,
+	}
 
-// 	accessToken, err := jwt.ParseString(token)
-// 	if err != nil {
-// 		return nil
-// 	}
-// 	if accessToken.Expiration().Before(time.Now()) {
-// 		return nil
-// 	}
+	foundToken, err := c.cfg.AccessTokens.FindAccessToken(searchToken)
+	if err != nil {
+		return datastore.AccessToken{}, errors.New("suitable access token not found")
+	}
+	if foundToken.ExpiryTime.Before(time.Now()) {
+		return datastore.AccessToken{}, errors.New("access token found but has expired")
+	}
 
-// 	return accessToken.Token
-// }
+	return foundToken, nil
+}
+
+// createRequest creates a signed bearer request JWT as part of an *http.Request to be sent to the platform.
+func (c *Connector) createRequest(tokenURI, clientID string, scopes []string) (*http.Request, error) {
+	token := jwt.New()
+	token.Set(jwt.IssuerKey, clientID)
+	token.Set(jwt.SubjectKey, clientID)
+	token.Set(jwt.AudienceKey, tokenURI)
+	token.Set(jwt.IssuedAtKey, time.Now().Add(-time.Minute*ClockSkewAllowanceMinutes))
+	token.Set(jwt.ExpirationKey, time.Now().Add(time.Second*AccessTokenTimeoutSeconds))
+	token.Set(jwt.JwtIDKey, "lti-service-token"+uuid.New().String())
+
+	key := c.SigningKey
+	if key == nil {
+		return nil, errors.New("signing key has not been set for this connector")
+	}
+	signedToken, err := jwt.Sign(token, jwa.RS256, key)
+	if err != nil {
+		return nil, errors.New("failed to sign bearer request token")
+	}
+
+	var scopeValue string
+	for _, val := range scopes {
+		scopeValue += val + " "
+	}
+
+	requestValues := url.Values{}
+	requestValues.Add("grant_type", "client_credentials")
+	requestValues.Add("client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer")
+	requestValues.Add("client_assertion", string(signedToken))
+	requestValues.Add("scope", scopeValue)
+	requestBody := strings.NewReader(requestValues.Encode())
+	request, err := http.NewRequest("POST", tokenURI, requestBody)
+	if err != nil {
+		return nil, errors.New("could not create http request for get access token")
+	}
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	return request, nil
+}
+
+// sendRequest sends the bearer token request to the platform and processes the response.
+func sendRequest(req *http.Request) (datastore.AccessToken, error) {
+	client := &http.Client{}
+	response, err := client.Do(req)
+	if err != nil {
+		return datastore.AccessToken{}, err
+	}
+	if response.StatusCode != http.StatusOK {
+		return datastore.AccessToken{}, fmt.Errorf("access token request got response status %s",
+			http.StatusText(response.StatusCode))
+	}
+
+	defer response.Body.Close()
+	body, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		return datastore.AccessToken{}, errors.New("could not read access token response body")
+	}
+	var responseBody map[string]interface{}
+	err = json.Unmarshal(body, &responseBody)
+	if err != nil {
+		return datastore.AccessToken{}, errors.New("could not decode access token reponse body")
+	}
+
+	responseToken, ok := responseBody["access_token"].(string)
+	if !ok {
+		return datastore.AccessToken{}, errors.New("could not format access token from response")
+	}
+	expiresIn, ok := responseBody["expires_in"].(float64)
+	if !ok {
+		return datastore.AccessToken{}, errors.New("could not format access token expiry time")
+	}
+	expiry, err := time.ParseDuration(strconv.FormatFloat(expiresIn, 'f', -1, 64) + "s")
+	if err != nil {
+		return datastore.AccessToken{}, errors.New("could not determine access token expiry time")
+	}
+
+	return datastore.AccessToken{
+		TokenURI:   req.URL.String(),
+		Token:      responseToken,
+		ExpiryTime: time.Now().Add(expiry),
+	}, nil
+}
 
 // GetAccessToken gets a scoped bearer token for use by a connector.
 func (c *Connector) GetAccessToken(scopes []string) error {
@@ -231,82 +315,32 @@ func (c *Connector) GetAccessToken(scopes []string) error {
 	if err != nil {
 		return err
 	}
+
+	// Move to nonpersistent package.
+	// Should be in connector, if library user doesn't use nonpersistent storage?
 	sort.Strings(scopes)
 
-	// storedToken := c.checkAccessTokenStore(registration.AuthTokenURI.String(), registration.ClientID, scopes)
-	// if storedToken != nil {
-	// 	c.AccessToken = storedToken
-	// 	return nil
-	// }
-
-	token := jwt.New()
-	token.Set(jwt.IssuerKey, registration.ClientID)
-	token.Set(jwt.SubjectKey, registration.ClientID)
-	token.Set(jwt.AudienceKey, registration.AuthTokenURI.String())
-	token.Set(jwt.IssuedAtKey, time.Now().Add(-time.Minute*ClockSkewAllowanceMinutes))
-	token.Set(jwt.ExpirationKey, time.Now().Add(time.Second*AccessTokenTimeoutSeconds))
-	token.Set(jwt.JwtIDKey, "lti-service-token"+uuid.New().String())
-
-	key := c.SigningKey
-	if key == nil {
-		return errors.New("signing key has not been set")
-	}
-	signedToken, err := jwt.Sign(token, jwa.RS256, key)
-	if err != nil {
-		fmt.Println(err)
+	storedToken, err := c.checkAccessTokenStore(registration.AuthTokenURI.String(), registration.ClientID, scopes)
+	if err == nil {
+		c.AccessToken = storedToken
+		return nil
 	}
 
-	var scopeValue string
-	for _, val := range scopes {
-		scopeValue += " " + val
-	}
 	// Testing value for scope:
-	scopeValue = "https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"
+	scopes = []string{"https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"}
 
-	requestValues := url.Values{}
-	requestValues.Add("grant_type", "client_credentials")
-	requestValues.Add("client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer")
-	requestValues.Add("client_assertion", string(signedToken))
-	requestValues.Add("scope", scopeValue)
-
-	requestBody := strings.NewReader(requestValues.Encode())
-	request, err := http.NewRequest("POST", registration.AuthTokenURI.String(), requestBody)
+	request, err := c.createRequest(registration.AuthTokenURI.String(), registration.ClientID, scopes)
 	if err != nil {
-		fmt.Println(err)
+		return err
 	}
-	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	client := &http.Client{}
-	response, err := client.Do(request)
+	responseToken, err := sendRequest(request)
 	if err != nil {
-		fmt.Println(err)
+		return err
 	}
+	responseToken.ClientID = registration.ClientID
+	responseToken.Scopes = scopes
 
-	if response.StatusCode != http.StatusOK {
-		return fmt.Errorf("access token request got response status: %s", http.StatusText(response.StatusCode))
-	}
-
-	defer response.Body.Close()
-	body, err := ioutil.ReadAll(response.Body)
-	if err != nil {
-		return errors.New("could not read access token response body")
-	}
-	var responseBody map[string]interface{}
-	err = json.Unmarshal(body, &responseBody)
-	if err != nil {
-		return errors.New("could not decode access token reponse body")
-	}
-
-	for k, v := range responseBody {
-		fmt.Printf("key %s, val %v\n", k, v)
-	}
-
-	responseToken, ok := responseBody["access_token"].(string)
-	if !ok {
-		return errors.New("could not format access token from response")
-	}
-	fmt.Println("key lookup 'access_token' gave: " + responseToken)
-
+	c.cfg.AccessTokens.StoreAccessToken(responseToken)
 	c.AccessToken = responseToken
 
 	return nil
