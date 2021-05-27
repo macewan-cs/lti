@@ -15,10 +15,10 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -61,13 +61,22 @@ type AGS struct {
 	LineItems []url.URL
 	Endpoint  url.URL
 	Target    Connector
-	Scopes    []url.URL
 }
 
 // NRPS implements Names & Roles Provisioning Services functions.
 type NRPS struct {
 	Endpoint url.URL
 	Target   Connector
+}
+
+// A ServiceRequest structures service (AGS & NRPS) connections between tool and platform.
+type ServiceRequest struct {
+	Scopes      []string
+	Method      string
+	URI         url.URL
+	Body        io.Reader
+	ContentType string
+	Accept      string
 }
 
 // New creates a *Connector. To function as expected, a valid launchID must be supplied.
@@ -268,6 +277,7 @@ func (c *Connector) createRequest(tokenURI, clientID string, scopes []string) (*
 
 // sendRequest sends the bearer token request to the platform and processes the response.
 func sendRequest(req *http.Request) (datastore.AccessToken, error) {
+	// TODO: Add timeouts.
 	client := &http.Client{}
 	response, err := client.Do(req)
 	if err != nil {
@@ -316,18 +326,11 @@ func (c *Connector) GetAccessToken(scopes []string) error {
 		return err
 	}
 
-	// Move to nonpersistent package.
-	// Should be in connector, if library user doesn't use nonpersistent storage?
-	sort.Strings(scopes)
-
 	storedToken, err := c.checkAccessTokenStore(registration.AuthTokenURI.String(), registration.ClientID, scopes)
 	if err == nil {
 		c.AccessToken = storedToken
 		return nil
 	}
-
-	// Testing value for scope:
-	scopes = []string{"https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"}
 
 	request, err := c.createRequest(registration.AuthTokenURI.String(), registration.ClientID, scopes)
 	if err != nil {
@@ -344,4 +347,76 @@ func (c *Connector) GetAccessToken(scopes []string) error {
 	c.AccessToken = responseToken
 
 	return nil
+}
+
+// GetContextRoster gets a course (typically referred to as a Context in LTI) roster from the platform.
+func (n *NRPS) GetContextRoster() (string, error) {
+	scopes := []string{"https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"}
+
+	_, body, err := n.Target.makeServiceRequest(ServiceRequest{
+		Scopes: scopes,
+		Method: "GET",
+		URI:    n.Endpoint,
+		Body:   nil,
+		Accept: "application/vnd.ims.lti-nrps.v2.membershipcontainer+json",
+	})
+	if err != nil {
+		return "", err
+	}
+
+	defer body.Close()
+	bodyBytes, err := ioutil.ReadAll(body)
+	if err != nil {
+		return "", errors.New("could not read access token response body")
+	}
+	var responseBody map[string]interface{}
+	err = json.Unmarshal(bodyBytes, &responseBody)
+	if err != nil {
+		return "", errors.New("could not decode get roster reponse body")
+	}
+
+	// TESTING.
+	for k, v := range responseBody {
+		fmt.Printf("key %s, val %v\n", k, v)
+	}
+
+	return "", nil
+}
+
+// makeServiceRequest makes direct tool to platform requests.
+func (c *Connector) makeServiceRequest(s ServiceRequest) (http.Header, io.ReadCloser, error) {
+	if len(s.Scopes) == 0 {
+		return nil, nil, errors.New("empty scope for service request")
+	}
+	if s.ContentType == "" {
+		s.ContentType = "application/json"
+	}
+	if s.Accept == "" {
+		s.Accept = "application/json"
+	}
+
+	err := c.GetAccessToken(s.Scopes)
+	if err != nil {
+		return nil, nil, errors.New("could not set access token for service request")
+	}
+
+	request, err := http.NewRequest(s.Method, s.URI.String(), s.Body)
+	if err != nil {
+		return nil, nil, errors.New("could not create http request for service request")
+	}
+	request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.AccessToken.Token))
+	request.Header.Set("Accept", s.Accept)
+	request.Header.Set("Content-Type", s.ContentType)
+
+	// TODO: Add timeouts.
+	client := &http.Client{}
+	response, err := client.Do(request)
+	if err != nil {
+		return nil, nil, err
+	}
+	if response.StatusCode != http.StatusOK {
+		return nil, nil, fmt.Errorf("service request got response status %s", http.StatusText(response.StatusCode))
+	}
+
+	return response.Header, response.Body, nil
 }

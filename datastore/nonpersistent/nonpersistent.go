@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -182,9 +183,7 @@ func (s *Store) StoreAccessToken(token datastore.AccessToken) error {
 		return errors.New("received empty accessToken")
 	}
 
-	// Scope sorting.
-	// Should be in connector, if library user doesn't use nonpersistent storage?
-	// sort.Strings(token.Scopes)
+	sort.Strings(token.Scopes)
 
 	storeValue, err := json.Marshal(token)
 	if err != nil {
@@ -215,7 +214,7 @@ func (s *Store) FindAccessToken(token datastore.AccessToken) (datastore.AccessTo
 	}
 	storeBytes, ok := storeValue.([]byte)
 	if !ok {
-		return datastore.AccessToken{}, errors.New("could not retrieve access token")
+		return datastore.AccessToken{}, errors.New("could not assert access token")
 	}
 
 	var accessToken datastore.AccessToken
