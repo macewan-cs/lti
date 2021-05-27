@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"time"
 )
 
 // A Registration is the details of a link between a Platform and a Tool. There can be multiple deployments per
@@ -28,6 +29,15 @@ type Registration struct {
 // Source: http://www.imsglobal.org/spec/lti/v1p3/#lti-deployment-id-claim.
 type Deployment struct {
 	DeploymentID string
+}
+
+// An AccessToken is the scoped bearer token used for direct communication between the platform and tool.
+type AccessToken struct {
+	TokenURI   string    `json:"tokenURI"`
+	ClientID   string    `json:"clientID"`
+	Scopes     []string  `json:"scopes"`
+	Token      string    `json:"token"`
+	ExpiryTime time.Time `json:"expiryTime"`
 }
 
 var maximumDeploymentIDLength = 255
@@ -74,6 +84,8 @@ type LaunchDataStorer interface {
 var ErrAccessTokenNotFound = errors.New("access token not found")
 
 type AccessTokenStorer interface {
-	StoreAccessToken(tokenURI string, clientID string, scopes []string, accessToken string, expiresIn string) error
-	FindAccessToken(tokenURI string, clientID string, scopes []string) (string, error)
+	// StoreAccessToken(tokenURI string, clientID string, scopes []string, accessToken string, expiresIn string) error
+	// FindAccessToken(tokenURI string, clientID string, scopes []string) (string, error)
+	StoreAccessToken(token AccessToken) error
+	FindAccessToken(token AccessToken) (string, error)
 }

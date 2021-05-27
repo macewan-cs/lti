@@ -55,6 +55,6 @@ func NewConnectorConfig() connector.Config {
 	return connector.Config{}
 }
 
-func NewConnector(cfg connector.Config, launchID string) *connector.Connector {
+func NewConnector(cfg connector.Config, launchID string) (*connector.Connector, error) {
 	return connector.New(cfg, launchID)
 }

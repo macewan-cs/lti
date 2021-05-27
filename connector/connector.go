@@ -16,7 +16,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/url"
 	"sort"
@@ -31,10 +30,10 @@ import (
 	"github.com/macewan-cs/lti/datastore/nonpersistent"
 )
 
-// Access Token validity period in minutes. Clock skew allowance in minutes.
+// Access Token validity period in seconds. Clock skew allowance in minutes.
 const (
-	AccessTokenTimeoutMinutes = 60
-	ClockSkewAllowance        = 2
+	AccessTokenTimeoutSeconds = 3600
+	ClockSkewAllowanceMinutes = 2
 )
 
 // Config represents the configuration used in creating a new *Connector. New will accept the zero value of this struct,
@@ -71,7 +70,7 @@ type NRPS struct {
 }
 
 // New creates a *Connector. To function as expected, a valid launchID must be supplied.
-func New(cfg Config, launchID string) *Connector {
+func New(cfg Config, launchID string) (*Connector, error) {
 	connector := Connector{
 		cfg:      cfg,
 		LaunchID: launchID,
@@ -87,13 +86,12 @@ func New(cfg Config, launchID string) *Connector {
 		connector.cfg.AccessTokens = nonpersistent.DefaultStore
 	}
 
-	// New could perhaps return (*Connector, error).
 	err := connector.setLaunchTokenFromLaunchData(launchID)
 	if err != nil {
-		log.Printf("connector made with empty launch data using launch ID %s", launchID)
+		return nil, fmt.Errorf("connector made with empty launch data using launch ID %s", launchID)
 	}
 
-	return &connector
+	return &connector, nil
 }
 
 // SetSigningKey takes a PEM encoded private key and sets the signing key to the corresponding RSA private key.
@@ -245,8 +243,8 @@ func (c *Connector) GetAccessToken(scopes []string) error {
 	token.Set(jwt.IssuerKey, registration.ClientID)
 	token.Set(jwt.SubjectKey, registration.ClientID)
 	token.Set(jwt.AudienceKey, registration.AuthTokenURI.String())
-	token.Set(jwt.IssuedAtKey, time.Now().Add(-time.Minute*ClockSkewAllowance))
-	token.Set(jwt.ExpirationKey, time.Now().Add(time.Minute*AccessTokenTimeoutMinutes))
+	token.Set(jwt.IssuedAtKey, time.Now().Add(-time.Minute*ClockSkewAllowanceMinutes))
+	token.Set(jwt.ExpirationKey, time.Now().Add(time.Second*AccessTokenTimeoutSeconds))
 	token.Set(jwt.JwtIDKey, "lti-service-token"+uuid.New().String())
 
 	key := c.SigningKey

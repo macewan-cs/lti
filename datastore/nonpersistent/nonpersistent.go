@@ -27,15 +27,6 @@ type Store struct {
 	AccessTokens  *sync.Map
 }
 
-// AccessToken structures values saved in-memory by the nonpersistent store.
-type AccessToken struct {
-	TokenURI   string    `json:"tokenURI"`
-	ClientID   string    `json:"clientID"`
-	Scopes     []string  `json:"scopes"`
-	Token      string    `json:"token"`
-	ExpiryTime time.Time `json:"expiryTime"`
-}
-
 // DefaultStore provides a single default datastore as a package variable so that other LTI functions can
 // fall back on this datastore whenever the user does not explicitly specify a datastore.
 var DefaultStore *Store = New()
@@ -172,62 +163,61 @@ func (s *Store) FindLaunchData(launchID string) (json.RawMessage, error) {
 }
 
 func accessTokenIndex(tokenURI, clientID string, scopes []string) string {
-	return tokenURI + clientID + strings.Join(scopes[:], "")
+	return tokenURI + clientID + strings.Join(scopes[:], " ")
 }
 
 // StoreAccessToken stores bearer tokens for potential reuse.
-func (s *Store) StoreAccessToken(tokenURI, clientID string, scopes []string, accessToken, expiresIn string) error {
-	if tokenURI == "" {
+// func (s *Store) StoreAccessToken(tokenURI, clientID string, scopes []string, accessToken, expiresIn string) error {
+func (s *Store) StoreAccessToken(token datastore.AccessToken) error {
+	if token.TokenURI == "" {
 		return errors.New("received empty tokenURI argument")
 	}
-	if clientID == "" {
+	if token.ClientID == "" {
 		return errors.New("received empty clientID argument")
 	}
-	if len(scopes) == 0 {
+	if len(token.Scopes) == 0 {
 		return errors.New("received empty scopes argument")
 	}
-	if accessToken == "" {
+	if token.Token == "" {
 		return errors.New("received empty accessToken argument")
 	}
-	if expiresIn == "" {
-		return errors.New("received empty expiresIn argument")
-	}
 	// Expiry period is specified in seconds.
-	expires, err := time.ParseDuration(expiresIn + "s")
-	if err != nil {
-		return errors.New("cannot determine token expiry time")
-	}
+	// expires, err := time.ParseDuration(expiresIn + "s")
+	// if err != nil {
+	// 	return errors.New("cannot determine token expiry time")
+	// }
 
-	storeToken := AccessToken{
-		TokenURI:   tokenURI,
-		ClientID:   clientID,
-		Scopes:     scopes,
-		Token:      accessToken,
-		ExpiryTime: time.Now().Add(expires),
-	}
+	// storeToken := datastore.AccessToken{
+	// 	TokenURI:   tokenURI,
+	// 	ClientID:   clientID,
+	// 	Scopes:     scopes,
+	// 	Token:      accessToken,
+	// 	ExpiryTime: time.Now().Add(expires),
+	// }
 
-	storeValue, err := json.Marshal(storeToken)
+	storeValue, err := json.Marshal(token)
 	if err != nil {
 		return errors.New("error encoding access token to store")
 	}
 
-	s.AccessTokens.Store(accessTokenIndex(tokenURI, clientID, scopes), storeValue)
+	s.AccessTokens.Store(accessTokenIndex(token.TokenURI, token.ClientID, token.Scopes), storeValue)
 	return nil
 }
 
 // StoreAccessToken retrieves bearer tokens for potential reuse.
-func (s *Store) FindAccessToken(tokenURI, clientID string, scopes []string) (string, error) {
-	if tokenURI == "" {
+//func (s *Store) FindAccessToken(tokenURI, clientID string, scopes []string) (string, error) {
+func (s *Store) FindAccessToken(token datastore.AccessToken) (string, error) {
+	if token.TokenURI == "" {
 		return "", errors.New("received empty tokenURI argument")
 	}
-	if clientID == "" {
+	if token.ClientID == "" {
 		return "", errors.New("received empty clientID argument")
 	}
-	if len(scopes) == 0 {
+	if len(token.Scopes) == 0 {
 		return "", errors.New("received empty scopes argument")
 	}
 
-	index := accessTokenIndex(tokenURI, clientID, scopes)
+	index := accessTokenIndex(token.TokenURI, token.ClientID, token.Scopes)
 	storeValue, ok := s.AccessTokens.Load(index)
 	if !ok {
 		return "", errors.New("no access token found")
@@ -237,7 +227,7 @@ func (s *Store) FindAccessToken(tokenURI, clientID string, scopes []string) (str
 		return "", errors.New("could not retrieve access token")
 	}
 
-	var accessToken AccessToken
+	var accessToken datastore.AccessToken
 	err := json.Unmarshal(storeBytes, &accessToken)
 	if err != nil {
 		return "", errors.New("could not decode access token")
