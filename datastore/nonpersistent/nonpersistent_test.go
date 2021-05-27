@@ -13,6 +13,8 @@ import (
 	"github.com/macewan-cs/lti/datastore"
 )
 
+const accessTokenExpirySeconds = "3600"
+
 func TestNew(t *testing.T) {
 	actual := New()
 	if actual == nil {
@@ -155,26 +157,35 @@ func TestStoreAndFindAccessToken(t *testing.T) {
 	scopes := []string{"https://scope/1.readonly", "https://scope/2.delete"}
 	expected := "aaaa1.bbbb2.cccc3"
 
+	// expiry, err := time.ParseDuration(accessTokenExpirySeconds)
+	// if err != nil {
+	// 	t.Error("time duration parse error")
+	// }
+
 	npStore := New()
 
-	err := npStore.StoreAccessToken("", clientID, scopes, expected)
+	err := npStore.StoreAccessToken("", clientID, scopes, expected, accessTokenExpirySeconds)
 	if err.Error() != "received empty tokenURI argument" {
 		t.Error("error not reported for empty tokenURI")
 	}
-	err = npStore.StoreAccessToken(tokenURI, "", scopes, expected)
+	err = npStore.StoreAccessToken(tokenURI, "", scopes, expected, accessTokenExpirySeconds)
 	if err.Error() != "received empty clientID argument" {
 		t.Error("error not reported for empty clientID")
 	}
-	err = npStore.StoreAccessToken(tokenURI, clientID, []string{}, expected)
+	err = npStore.StoreAccessToken(tokenURI, clientID, []string{}, expected, accessTokenExpirySeconds)
 	if err.Error() != "received empty scopes argument" {
 		t.Error("error not reported for empty scopes")
 	}
-	err = npStore.StoreAccessToken(tokenURI, clientID, scopes, "")
+	err = npStore.StoreAccessToken(tokenURI, clientID, scopes, "", accessTokenExpirySeconds)
 	if err.Error() != "received empty accessToken argument" {
 		t.Error("error not reported for empty token string")
 	}
+	err = npStore.StoreAccessToken(tokenURI, clientID, scopes, expected, "")
+	if err.Error() != "received empty expiresIn argument" {
+		t.Error("error not reported for empty expires in duration")
+	}
 
-	err = npStore.StoreAccessToken(tokenURI, clientID, scopes, expected)
+	err = npStore.StoreAccessToken(tokenURI, clientID, scopes, expected, accessTokenExpirySeconds)
 	if err != nil {
 		t.Fatal("access token storage failed")
 	}

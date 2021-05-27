@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/macewan-cs/lti/datastore"
 )
@@ -28,10 +29,11 @@ type Store struct {
 
 // AccessToken structures values saved in-memory by the nonpersistent store.
 type AccessToken struct {
-	TokenURI string   `json:"tokenuri"`
-	ClientID string   `json:"clientid"`
-	Scopes   []string `json:"scopes"`
-	Token    string   `json:"token"`
+	TokenURI   string    `json:"tokenURI"`
+	ClientID   string    `json:"clientID"`
+	Scopes     []string  `json:"scopes"`
+	Token      string    `json:"token"`
+	ExpiryTime time.Time `json:"expiryTime"`
 }
 
 // DefaultStore provides a single default datastore as a package variable so that other LTI functions can
@@ -174,7 +176,7 @@ func accessTokenIndex(tokenURI, clientID string, scopes []string) string {
 }
 
 // StoreAccessToken stores bearer tokens for potential reuse.
-func (s *Store) StoreAccessToken(tokenURI string, clientID string, scopes []string, accessToken string) error {
+func (s *Store) StoreAccessToken(tokenURI, clientID string, scopes []string, accessToken, expiresIn string) error {
 	if tokenURI == "" {
 		return errors.New("received empty tokenURI argument")
 	}
@@ -187,12 +189,21 @@ func (s *Store) StoreAccessToken(tokenURI string, clientID string, scopes []stri
 	if accessToken == "" {
 		return errors.New("received empty accessToken argument")
 	}
+	if expiresIn == "" {
+		return errors.New("received empty expiresIn argument")
+	}
+	// Expiry period is specified in seconds.
+	expires, err := time.ParseDuration(expiresIn + "s")
+	if err != nil {
+		return errors.New("cannot determine token expiry time")
+	}
 
 	storeToken := AccessToken{
-		TokenURI: tokenURI,
-		ClientID: clientID,
-		Scopes:   scopes,
-		Token:    accessToken,
+		TokenURI:   tokenURI,
+		ClientID:   clientID,
+		Scopes:     scopes,
+		Token:      accessToken,
+		ExpiryTime: time.Now().Add(expires),
 	}
 
 	storeValue, err := json.Marshal(storeToken)
@@ -205,7 +216,7 @@ func (s *Store) StoreAccessToken(tokenURI string, clientID string, scopes []stri
 }
 
 // StoreAccessToken retrieves bearer tokens for potential reuse.
-func (s *Store) FindAccessToken(tokenURI string, clientID string, scopes []string) (string, error) {
+func (s *Store) FindAccessToken(tokenURI, clientID string, scopes []string) (string, error) {
 	if tokenURI == "" {
 		return "", errors.New("received empty tokenURI argument")
 	}
@@ -221,16 +232,18 @@ func (s *Store) FindAccessToken(tokenURI string, clientID string, scopes []strin
 	if !ok {
 		return "", errors.New("no access token found")
 	}
-
 	storeBytes, ok := storeValue.([]byte)
 	if !ok {
-		return "", errors.New("could not retrieve token")
+		return "", errors.New("could not retrieve access token")
 	}
 
 	var accessToken AccessToken
 	err := json.Unmarshal(storeBytes, &accessToken)
 	if err != nil {
-		return "", errors.New("could not decode token")
+		return "", errors.New("could not decode access token")
+	}
+	if accessToken.ExpiryTime.Before(time.Now()) {
+		return "", errors.New("access token has expired")
 	}
 
 	return accessToken.Token, nil

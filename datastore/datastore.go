@@ -74,6 +74,6 @@ type LaunchDataStorer interface {
 var ErrAccessTokenNotFound = errors.New("access token not found")
 
 type AccessTokenStorer interface {
-	StoreAccessToken(tokenURI string, clientID string, scopes []string, accessToken string) error
+	StoreAccessToken(tokenURI string, clientID string, scopes []string, accessToken string, expiresIn string) error
 	FindAccessToken(tokenURI string, clientID string, scopes []string) (string, error)
 }

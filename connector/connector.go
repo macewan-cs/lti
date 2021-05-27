@@ -11,12 +11,15 @@ import (
 	"context"
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 
@@ -31,7 +34,7 @@ import (
 // Access Token validity period in minutes. Clock skew allowance in minutes.
 const (
 	AccessTokenTimeoutMinutes = 60
-	ClockSkewAllowance        = 1
+	ClockSkewAllowance        = 2
 )
 
 // Config represents the configuration used in creating a new *Connector. New will accept the zero value of this struct,
@@ -48,6 +51,7 @@ type Connector struct {
 	LaunchID    string
 	LaunchToken jwt.Token
 	SigningKey  *rsa.PrivateKey
+	AccessToken string
 	//SigningKeyFunc func([]byte) (*rsa.PrivateKey, error)
 }
 
@@ -58,14 +62,12 @@ type AGS struct {
 	Endpoint  url.URL
 	Target    Connector
 	Scopes    []url.URL
-	//token     jwt.Token
 }
 
 // NRPS implements Names & Roles Provisioning Services functions.
 type NRPS struct {
 	Endpoint url.URL
 	Target   Connector
-	//token    jwt.Token
 }
 
 // New creates a *Connector. To function as expected, a valid launchID must be supplied.
@@ -88,7 +90,7 @@ func New(cfg Config, launchID string) *Connector {
 	// New could perhaps return (*Connector, error).
 	err := connector.setLaunchTokenFromLaunchData(launchID)
 	if err != nil {
-		log.Printf("connector made with blank token using launch ID %s", launchID)
+		log.Printf("connector made with empty launch data using launch ID %s", launchID)
 	}
 
 	return &connector
@@ -207,12 +209,37 @@ func (c *Connector) UpgradeAGS() (*AGS, error) {
 	return nil, nil
 }
 
-// AccessToken gets a scoped bearer token for use by a connector.
-func (c *Connector) AccessToken(scopes []url.URL) error {
+// checkAccessTokenStore looks for a suitable, non-expired access token in storage.
+// func (c *Connector) checkAccessTokenStore(tokenURI, clientID string, scopes []string) string {
+// 	token, err := c.cfg.AccessTokens.FindAccessToken(tokenURI, clientID, scopes)
+// 	if err != nil {
+// 		return nil
+// 	}
+
+// 	accessToken, err := jwt.ParseString(token)
+// 	if err != nil {
+// 		return nil
+// 	}
+// 	if accessToken.Expiration().Before(time.Now()) {
+// 		return nil
+// 	}
+
+// 	return accessToken.Token
+// }
+
+// GetAccessToken gets a scoped bearer token for use by a connector.
+func (c *Connector) GetAccessToken(scopes []string) error {
 	registration, err := c.getRegistration()
 	if err != nil {
 		return err
 	}
+	sort.Strings(scopes)
+
+	// storedToken := c.checkAccessTokenStore(registration.AuthTokenURI.String(), registration.ClientID, scopes)
+	// if storedToken != nil {
+	// 	c.AccessToken = storedToken
+	// 	return nil
+	// }
 
 	token := jwt.New()
 	token.Set(jwt.IssuerKey, registration.ClientID)
@@ -223,18 +250,20 @@ func (c *Connector) AccessToken(scopes []url.URL) error {
 	token.Set(jwt.JwtIDKey, "lti-service-token"+uuid.New().String())
 
 	key := c.SigningKey
+	if key == nil {
+		return errors.New("signing key has not been set")
+	}
 	signedToken, err := jwt.Sign(token, jwa.RS256, key)
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	// var scopeValue string
-	// for _, val := range scopes {
-	// 	scopeValue += " " + val.String()
-	// }
-
+	var scopeValue string
+	for _, val := range scopes {
+		scopeValue += " " + val
+	}
 	// Testing value for scope:
-	scopeValue := "https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"
+	scopeValue = "https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"
 
 	requestValues := url.Values{}
 	requestValues.Add("grant_type", "client_credentials")
@@ -254,7 +283,33 @@ func (c *Connector) AccessToken(scopes []url.URL) error {
 	if err != nil {
 		fmt.Println(err)
 	}
-	fmt.Println("\nAccess token response statuscode: " + fmt.Sprint(response.StatusCode))
+
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("access token request got response status: %s", http.StatusText(response.StatusCode))
+	}
+
+	defer response.Body.Close()
+	body, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		return errors.New("could not read access token response body")
+	}
+	var responseBody map[string]interface{}
+	err = json.Unmarshal(body, &responseBody)
+	if err != nil {
+		return errors.New("could not decode access token reponse body")
+	}
+
+	for k, v := range responseBody {
+		fmt.Printf("key %s, val %v\n", k, v)
+	}
+
+	responseToken, ok := responseBody["access_token"].(string)
+	if !ok {
+		return errors.New("could not format access token from response")
+	}
+	fmt.Println("key lookup 'access_token' gave: " + responseToken)
+
+	c.AccessToken = responseToken
 
 	return nil
 }
