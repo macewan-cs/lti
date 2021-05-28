@@ -37,6 +37,9 @@ const (
 	ClockSkewAllowanceMinutes = 2
 )
 
+// Timeout value for http clients.
+var timeout time.Duration = time.Second * 15
+
 // Config represents the configuration used in creating a new *Connector. New will accept the zero value of this struct,
 // and in the case of the zero value, the resulting Connector will use nonpersistent storage.
 type Config struct {
@@ -77,6 +80,34 @@ type ServiceRequest struct {
 	Body        io.Reader
 	ContentType string
 	Accept      string
+}
+
+// A Membership represents a course roster with a brief class description.
+type Membership struct {
+	ID      string
+	Context Context
+	Members []Member
+}
+
+// A Context represents a brief course description used in Names & Roles.
+type Context struct {
+	ID    string
+	Label string
+	Title string
+}
+
+// A Member represents a participant in a LTI-enabled process.
+type Member struct {
+	Status             string
+	Name               string
+	Picture            string
+	GivenName          string `json:"given_name"`
+	FamilyName         string `json:"family_name"`
+	MiddleName         string `json:"middle_name"`
+	Email              string
+	UserID             string `json:"user_id"`
+	LisPersonSourceDid string `json:"lis_person_sourcedid"`
+	Roles              []string
 }
 
 // New creates a *Connector. To function as expected, a valid launchID must be supplied.
@@ -277,8 +308,7 @@ func (c *Connector) createRequest(tokenURI, clientID string, scopes []string) (*
 
 // sendRequest sends the bearer token request to the platform and processes the response.
 func sendRequest(req *http.Request) (datastore.AccessToken, error) {
-	// TODO: Add timeouts.
-	client := &http.Client{}
+	client := &http.Client{Timeout: timeout}
 	response, err := client.Do(req)
 	if err != nil {
 		return datastore.AccessToken{}, err
@@ -350,7 +380,7 @@ func (c *Connector) GetAccessToken(scopes []string) error {
 }
 
 // GetContextRoster gets a course (typically referred to as a Context in LTI) roster from the platform.
-func (n *NRPS) GetContextRoster() (string, error) {
+func (n *NRPS) GetContextRoster() (Membership, error) {
 	scopes := []string{"https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"}
 
 	_, body, err := n.Target.makeServiceRequest(ServiceRequest{
@@ -361,26 +391,22 @@ func (n *NRPS) GetContextRoster() (string, error) {
 		Accept: "application/vnd.ims.lti-nrps.v2.membershipcontainer+json",
 	})
 	if err != nil {
-		return "", err
+		return Membership{}, err
 	}
 
 	defer body.Close()
 	bodyBytes, err := ioutil.ReadAll(body)
 	if err != nil {
-		return "", errors.New("could not read access token response body")
+		return Membership{}, errors.New("could not read access token response body")
 	}
-	var responseBody map[string]interface{}
-	err = json.Unmarshal(bodyBytes, &responseBody)
+
+	var membership Membership
+	err = json.Unmarshal(bodyBytes, &membership)
 	if err != nil {
-		return "", errors.New("could not decode get roster reponse body")
+		return Membership{}, errors.New("could not decode get roster reponse body")
 	}
 
-	// TESTING.
-	for k, v := range responseBody {
-		fmt.Printf("key %s, val %v\n", k, v)
-	}
-
-	return "", nil
+	return membership, nil
 }
 
 // makeServiceRequest makes direct tool to platform requests.
@@ -408,8 +434,7 @@ func (c *Connector) makeServiceRequest(s ServiceRequest) (http.Header, io.ReadCl
 	request.Header.Set("Accept", s.Accept)
 	request.Header.Set("Content-Type", s.ContentType)
 
-	// TODO: Add timeouts.
-	client := &http.Client{}
+	client := &http.Client{Timeout: timeout}
 	response, err := client.Do(request)
 	if err != nil {
 		return nil, nil, err
