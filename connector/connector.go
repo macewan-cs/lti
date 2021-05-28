@@ -16,7 +16,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -61,15 +60,15 @@ type Connector struct {
 // AGS implements Assignment & Grades Services functions.
 type AGS struct {
 	LineItem  url.URL
-	LineItems []url.URL
-	Endpoint  url.URL
-	Target    Connector
+	LineItems url.URL
+	Scopes    []string
+	Target    *Connector
 }
 
 // NRPS implements Names & Roles Provisioning Services functions.
 type NRPS struct {
 	Endpoint url.URL
-	Target   Connector
+	Target   *Connector
 }
 
 // A ServiceRequest structures service (AGS & NRPS) connections between tool and platform.
@@ -85,12 +84,12 @@ type ServiceRequest struct {
 // A Membership represents a course roster with a brief class description.
 type Membership struct {
 	ID      string
-	Context Context
+	Context LTIContext
 	Members []Member
 }
 
-// A Context represents a brief course description used in Names & Roles.
-type Context struct {
+// A LTIContext represents a brief course description used in Names & Roles.
+type LTIContext struct {
 	ID    string
 	Label string
 	Title string
@@ -226,7 +225,10 @@ func (c *Connector) UpgradeNRPS() (*NRPS, error) {
 		return nil, errors.New("names and roles endpoint improperly formatted")
 	}
 
-	return &NRPS{Endpoint: *nrpsURI, Target: *c}, nil
+	return &NRPS{
+		Endpoint: *nrpsURI,
+		Target:   c,
+	}, nil
 }
 
 // UpgradeAGS provides a Connector upgraded for AGS calls.
@@ -241,11 +243,55 @@ func (c *Connector) UpgradeAGS() (*AGS, error) {
 		return nil, errors.New("assignments and grades information improperly formatted")
 	}
 
-	for key, val := range agsMap {
-		fmt.Println(key, val)
+	lineItem, ok := agsMap["lineitem"]
+	if !ok {
+		return nil, errors.New("could not get lineitem URL")
+	}
+	lineItemString, ok := lineItem.(string)
+	if !ok {
+		return nil, errors.New("could not assert lineitem URL")
+	}
+	lineItemURI, err := url.Parse(lineItemString)
+	if err != nil {
+		return nil, errors.New("could not parse lineitem URL")
 	}
 
-	return nil, nil
+	lineItems, ok := agsMap["lineitems"]
+	if !ok {
+		return nil, errors.New("could not get lineitems URL")
+	}
+	lineItemsString, ok := lineItems.(string)
+	if !ok {
+		return nil, errors.New("could not assert lineitems URL")
+	}
+	lineItemsURI, err := url.Parse(lineItemsString)
+	if err != nil {
+		return nil, errors.New("could not parse lineitems URL")
+	}
+
+	scope, ok := agsMap["scope"]
+	if !ok {
+		return nil, errors.New("could not get AGS scopes")
+	}
+	scopeInterfaces, ok := scope.([]interface{})
+	if !ok {
+		return nil, errors.New("could not assert AGS scopes")
+	}
+	var scopes []string
+	for _, v := range scopeInterfaces {
+		s, ok := v.(string)
+		if !ok {
+			return nil, errors.New("could not assert an AGS scope")
+		}
+		scopes = append(scopes, s)
+	}
+
+	return &AGS{
+		LineItem:  *lineItemURI,
+		LineItems: *lineItemsURI,
+		Scopes:    scopes,
+		Target:    c,
+	}, nil
 }
 
 // checkAccessTokenStore looks for a suitable, non-expired access token in storage.
@@ -319,12 +365,8 @@ func sendRequest(req *http.Request) (datastore.AccessToken, error) {
 	}
 
 	defer response.Body.Close()
-	body, err := ioutil.ReadAll(response.Body)
-	if err != nil {
-		return datastore.AccessToken{}, errors.New("could not read access token response body")
-	}
 	var responseBody map[string]interface{}
-	err = json.Unmarshal(body, &responseBody)
+	err = json.NewDecoder(response.Body).Decode(&responseBody)
 	if err != nil {
 		return datastore.AccessToken{}, errors.New("could not decode access token reponse body")
 	}
@@ -380,7 +422,7 @@ func (c *Connector) GetAccessToken(scopes []string) error {
 }
 
 // GetContextRoster gets a course (typically referred to as a Context in LTI) roster from the platform.
-func (n *NRPS) GetContextRoster() (Membership, error) {
+func (n *NRPS) GetMembership() (Membership, error) {
 	scopes := []string{"https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"}
 
 	_, body, err := n.Target.makeServiceRequest(ServiceRequest{
@@ -395,13 +437,8 @@ func (n *NRPS) GetContextRoster() (Membership, error) {
 	}
 
 	defer body.Close()
-	bodyBytes, err := ioutil.ReadAll(body)
-	if err != nil {
-		return Membership{}, errors.New("could not read access token response body")
-	}
-
 	var membership Membership
-	err = json.Unmarshal(bodyBytes, &membership)
+	err = json.NewDecoder(body).Decode(&membership)
 	if err != nil {
 		return Membership{}, errors.New("could not decode get roster reponse body")
 	}
