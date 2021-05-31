@@ -60,8 +60,8 @@ type Connector struct {
 
 // AGS implements Assignment & Grades Services functions.
 type AGS struct {
-	LineItem  url.URL
-	LineItems url.URL
+	LineItem  *url.URL
+	LineItems *url.URL
 	Scopes    []string
 	Target    *Connector
 }
@@ -96,8 +96,8 @@ type Score struct {
 // A LineItem represents the specific resource associated with a LTI launch.
 // type LineItem struct {
 // 	ID             string
-// 	StartDateTime  time.Time
-// 	EndDateTime    time.Time
+// 	StartDateTime  string
+// 	EndDateTime    string
 // 	ScoreMaximum   float32
 // 	Label          string
 // 	Tag            string
@@ -107,7 +107,9 @@ type Score struct {
 
 // NRPS implements Names & Roles Provisioning Services functions.
 type NRPS struct {
-	Endpoint url.URL
+	Endpoint *url.URL
+	Limit    int
+	NextPage *url.URL
 	Target   *Connector
 }
 
@@ -115,14 +117,14 @@ type NRPS struct {
 type ServiceRequest struct {
 	Scopes         []string
 	Method         string
-	URI            url.URL
+	URI            *url.URL
 	Body           io.Reader
 	ContentType    string
 	Accept         string
 	ExpectedStatus int
 }
 
-// A Membership represents a course roster with a brief class description.
+// A Membership represents a course membership with a brief class description.
 type Membership struct {
 	ID      string
 	Context LTIContext
@@ -267,7 +269,7 @@ func (c *Connector) UpgradeNRPS() (*NRPS, error) {
 	}
 
 	return &NRPS{
-		Endpoint: *nrpsURI,
+		Endpoint: nrpsURI,
 		Target:   c,
 	}, nil
 }
@@ -328,8 +330,8 @@ func (c *Connector) UpgradeAGS() (*AGS, error) {
 	}
 
 	return &AGS{
-		LineItem:  *lineItemURI,
-		LineItems: *lineItemsURI,
+		LineItem:  lineItemURI,
+		LineItems: lineItemsURI,
 		Scopes:    scopes,
 		Target:    c,
 	}, nil
@@ -504,7 +506,7 @@ func (c *Connector) makeServiceRequest(s ServiceRequest) (http.Header, io.ReadCl
 
 // NRPS Methods.
 
-// GetContextRoster gets a course (typically referred to as a Context in LTI) roster from the platform.
+// GetMembership gets a course (typically referred to as a Context in LTI) membership from the platform.
 func (n *NRPS) GetMembership() (Membership, error) {
 	scopes := []string{"https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"}
 
@@ -524,10 +526,71 @@ func (n *NRPS) GetMembership() (Membership, error) {
 	var membership Membership
 	err = json.NewDecoder(body).Decode(&membership)
 	if err != nil {
-		return Membership{}, errors.New("could not decode get roster reponse body")
+		return Membership{}, errors.New("could not decode get membership reponse body")
 	}
 
 	return membership, nil
+}
+
+// GetPageMembership gets paged Memberships from a course, useful for processing large enrollments.
+func (n *NRPS) GetPagedMembership(limit int) (Membership, bool, error) {
+	if limit < 1 {
+		return Membership{}, false, errors.New("must supply a paging limit greater than or equal to one")
+	}
+	scopes := []string{"https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"}
+
+	existingValues, err := url.ParseQuery(n.Endpoint.RawQuery)
+	if err != nil {
+		return Membership{}, false, errors.New("could not parse NRPS query values")
+	}
+	existingValues.Add("limit", strconv.Itoa(limit))
+
+	// Set the initial limit query parameter.
+	pagedURI, err := url.Parse(n.Endpoint.String())
+	if err != nil {
+		return Membership{}, false, errors.New("could not parse NRPS endpoint")
+	}
+	pagedURI.RawQuery = existingValues.Encode()
+	s := ServiceRequest{
+		Scopes:         scopes,
+		Method:         "GET",
+		URI:            pagedURI,
+		Body:           nil,
+		Accept:         "application/vnd.ims.lti-nrps.v2.membershipcontainer+json",
+		ExpectedStatus: http.StatusOK,
+	}
+
+	// If there was a next page set from a previous response, use it.
+	if n.NextPage != nil {
+		s.URI = n.NextPage
+	}
+	headers, body, err := n.Target.makeServiceRequest(s)
+	if err != nil {
+		return Membership{}, false, err
+	}
+
+	defer body.Close()
+	var membership Membership
+	err = json.NewDecoder(body).Decode(&membership)
+	if err != nil {
+		return Membership{}, false, errors.New("could not decode get membership reponse body")
+	}
+
+	// Get the next page link from the response headers.
+	nextPage := headers.Get("link")
+	if nextPage == "" {
+		// If there are no further next page links, set the NRPS NextPage field to nil.
+		n.NextPage = nil
+		return membership, false, nil
+	} else {
+		nextPageString := strings.Trim(nextPage, "<>")
+		nextPageURI, err := url.Parse(nextPageString)
+		if err != nil {
+			return Membership{}, false, errors.New("could not parse next page URL from response headers")
+		}
+		n.NextPage = nextPageURI
+		return membership, true, nil
+	}
 }
 
 // AGS Methods.
@@ -563,7 +626,7 @@ func (a *AGS) PutScore(s Score) error {
 	_, _, err = a.Target.makeServiceRequest(ServiceRequest{
 		Scopes:         scopes,
 		Method:         "POST",
-		URI:            *scoreURI,
+		URI:            scoreURI,
 		Body:           &body,
 		ContentType:    "application/vnd.ims.lis.v1.score+json",
 		ExpectedStatus: http.StatusOK,
