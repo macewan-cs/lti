@@ -8,6 +8,7 @@
 package connector
 
 import (
+	"bytes"
 	"context"
 	"crypto/rsa"
 	"crypto/x509"
@@ -65,6 +66,45 @@ type AGS struct {
 	Target    *Connector
 }
 
+const (
+	// AGS activityProgress constants.
+	ActivityInitialized = "Initialized"
+	ActivityStarted     = "Started"
+	ActivityInProgress  = "InProgress"
+	ActvitySubmitted    = "Submitted"
+	ActivityCompleted   = "Completed"
+
+	// AGS gradingProgress constants.
+	GradingFullyGraded   = "FullyGraded"
+	GradingPending       = "Pending"
+	GradingPendingManual = "PendingManual"
+	GradingFailed        = "Failed"
+	GradeNotReady        = "NotReady"
+)
+
+// A Score represents a grade assigned by the tool and sent to the platform.
+type Score struct {
+	Timestamp        string  `json:"timestamp"`
+	ScoreGiven       float32 `json:"scoreGiven"`
+	ScoreMaximum     float32 `json:"scoreMaximum"`
+	Comment          string  `json:"comment"`
+	ActivityProgress string  `json:"activityProgress"`
+	GradingProgress  string  `json:"gradingProgress"`
+	UserID           string  `json:"userId"`
+}
+
+// A LineItem represents the specific resource associated with a LTI launch.
+// type LineItem struct {
+// 	ID             string
+// 	StartDateTime  time.Time
+// 	EndDateTime    time.Time
+// 	ScoreMaximum   float32
+// 	Label          string
+// 	Tag            string
+// 	ResourceID     string
+// 	ResourceLinkID string
+// }
+
 // NRPS implements Names & Roles Provisioning Services functions.
 type NRPS struct {
 	Endpoint url.URL
@@ -73,12 +113,13 @@ type NRPS struct {
 
 // A ServiceRequest structures service (AGS & NRPS) connections between tool and platform.
 type ServiceRequest struct {
-	Scopes      []string
-	Method      string
-	URI         url.URL
-	Body        io.Reader
-	ContentType string
-	Accept      string
+	Scopes         []string
+	Method         string
+	URI            url.URL
+	Body           io.Reader
+	ContentType    string
+	Accept         string
+	ExpectedStatus int
 }
 
 // A Membership represents a course roster with a brief class description.
@@ -421,31 +462,6 @@ func (c *Connector) GetAccessToken(scopes []string) error {
 	return nil
 }
 
-// GetContextRoster gets a course (typically referred to as a Context in LTI) roster from the platform.
-func (n *NRPS) GetMembership() (Membership, error) {
-	scopes := []string{"https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"}
-
-	_, body, err := n.Target.makeServiceRequest(ServiceRequest{
-		Scopes: scopes,
-		Method: "GET",
-		URI:    n.Endpoint,
-		Body:   nil,
-		Accept: "application/vnd.ims.lti-nrps.v2.membershipcontainer+json",
-	})
-	if err != nil {
-		return Membership{}, err
-	}
-
-	defer body.Close()
-	var membership Membership
-	err = json.NewDecoder(body).Decode(&membership)
-	if err != nil {
-		return Membership{}, errors.New("could not decode get roster reponse body")
-	}
-
-	return membership, nil
-}
-
 // makeServiceRequest makes direct tool to platform requests.
 func (c *Connector) makeServiceRequest(s ServiceRequest) (http.Header, io.ReadCloser, error) {
 	if len(s.Scopes) == 0 {
@@ -456,6 +472,9 @@ func (c *Connector) makeServiceRequest(s ServiceRequest) (http.Header, io.ReadCl
 	}
 	if s.Accept == "" {
 		s.Accept = "application/json"
+	}
+	if s.ExpectedStatus == 0 {
+		s.ExpectedStatus = http.StatusOK
 	}
 
 	err := c.GetAccessToken(s.Scopes)
@@ -476,9 +495,82 @@ func (c *Connector) makeServiceRequest(s ServiceRequest) (http.Header, io.ReadCl
 	if err != nil {
 		return nil, nil, err
 	}
-	if response.StatusCode != http.StatusOK {
+	if response.StatusCode != s.ExpectedStatus {
 		return nil, nil, fmt.Errorf("service request got response status %s", http.StatusText(response.StatusCode))
 	}
 
 	return response.Header, response.Body, nil
+}
+
+// NRPS Methods.
+
+// GetContextRoster gets a course (typically referred to as a Context in LTI) roster from the platform.
+func (n *NRPS) GetMembership() (Membership, error) {
+	scopes := []string{"https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"}
+
+	_, body, err := n.Target.makeServiceRequest(ServiceRequest{
+		Scopes:         scopes,
+		Method:         "GET",
+		URI:            n.Endpoint,
+		Body:           nil,
+		Accept:         "application/vnd.ims.lti-nrps.v2.membershipcontainer+json",
+		ExpectedStatus: http.StatusOK,
+	})
+	if err != nil {
+		return Membership{}, err
+	}
+
+	defer body.Close()
+	var membership Membership
+	err = json.NewDecoder(body).Decode(&membership)
+	if err != nil {
+		return Membership{}, errors.New("could not decode get roster reponse body")
+	}
+
+	return membership, nil
+}
+
+// AGS Methods.
+
+// PutScore posts a grade (LTI spec uses term 'score') for the launched resource to the platform's gradebook.
+func (a *AGS) PutScore(s Score) error {
+	scopes := []string{"https://purl.imsglobal.org/spec/lti-ags/scope/score"}
+
+	lineItemValues := a.LineItem.Query()
+	scoreURI, err := url.Parse(a.LineItem.Scheme + "://" + a.LineItem.Host + a.LineItem.Path + "/scores")
+	if err != nil {
+		return errors.New("could not determine score URI")
+	}
+	scoreURI.RawQuery = lineItemValues.Encode()
+
+	// The launch data 'sub' claim is the launching user_ID.
+	userIDClaim, ok := a.Target.LaunchToken.Get("sub")
+	if !ok {
+		return errors.New("could not get user ID to publish score")
+	}
+	userID, ok := userIDClaim.(string)
+	if !ok {
+		return errors.New("could not assert user ID to publish score")
+	}
+	s.UserID = userID
+
+	var body bytes.Buffer
+	err = json.NewEncoder(&body).Encode(s)
+	if err != nil {
+		return errors.New("could not encode body of score publish request")
+	}
+
+	_, _, err = a.Target.makeServiceRequest(ServiceRequest{
+		Scopes:         scopes,
+		Method:         "POST",
+		URI:            *scoreURI,
+		Body:           &body,
+		ContentType:    "application/vnd.ims.lis.v1.score+json",
+		ExpectedStatus: http.StatusOK,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
