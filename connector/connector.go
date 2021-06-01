@@ -55,7 +55,6 @@ type Connector struct {
 	LaunchToken jwt.Token
 	SigningKey  *rsa.PrivateKey
 	AccessToken datastore.AccessToken
-	//SigningKeyFunc func([]byte) (*rsa.PrivateKey, error)
 }
 
 // AGS implements Assignment & Grades Services functions.
@@ -599,11 +598,11 @@ func (n *NRPS) GetPagedMembership(limit int) (Membership, bool, error) {
 func (a *AGS) PutScore(s Score) error {
 	scopes := []string{"https://purl.imsglobal.org/spec/lti-ags/scope/score"}
 
+	// Make a copy of the lineitem and add the /scores path.
+	var scoreURI *url.URL
+	*scoreURI = *a.LineItem
+	scoreURI.Path = scoreURI.Path + "/scores"
 	lineItemValues := a.LineItem.Query()
-	scoreURI, err := url.Parse(a.LineItem.Scheme + "://" + a.LineItem.Host + a.LineItem.Path + "/scores")
-	if err != nil {
-		return errors.New("could not determine score URI")
-	}
 	scoreURI.RawQuery = lineItemValues.Encode()
 
 	// The launch data 'sub' claim is the launching user_ID.
@@ -618,7 +617,7 @@ func (a *AGS) PutScore(s Score) error {
 	s.UserID = userID
 
 	var body bytes.Buffer
-	err = json.NewEncoder(&body).Encode(s)
+	err := json.NewEncoder(&body).Encode(s)
 	if err != nil {
 		return errors.New("could not encode body of score publish request")
 	}
