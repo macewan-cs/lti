@@ -92,6 +92,16 @@ type Score struct {
 	UserID           string  `json:"userId"`
 }
 
+// A Result represents a grade assigned by the platform and retrieved by the tool.
+type Result struct {
+	ID            string
+	ScoreOf       string
+	UserID        string
+	ResultScore   float64
+	ResultMaximum float64
+	Comment       string
+}
+
 // A LineItem represents the specific resource associated with a LTI launch.
 // type LineItem struct {
 // 	ID             string
@@ -468,7 +478,7 @@ func (c *Connector) makeServiceRequest(s ServiceRequest) (http.Header, io.ReadCl
 	if len(s.Scopes) == 0 {
 		return nil, nil, errors.New("empty scope for service request")
 	}
-	if s.ContentType == "" {
+	if s.ContentType == "" && strings.ToUpper(s.Method) == "POST" {
 		s.ContentType = "application/json"
 	}
 	if s.Accept == "" {
@@ -480,7 +490,7 @@ func (c *Connector) makeServiceRequest(s ServiceRequest) (http.Header, io.ReadCl
 
 	err := c.GetAccessToken(s.Scopes)
 	if err != nil {
-		return nil, nil, errors.New("could not set access token for service request")
+		return nil, nil, err
 	}
 
 	request, err := http.NewRequest(s.Method, s.URI.String(), s.Body)
@@ -687,4 +697,46 @@ func (a *AGS) PutScore(s Score) error {
 	}
 
 	return nil
+}
+
+// GetResults fetches the platform-assigned grades for a lineitem.
+func (a *AGS) GetResults() ([]Result, error) {
+	scopes := []string{"https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly"}
+
+	// Make a copy of the lineitem and add the /scores path.
+	resultURI, err := url.Parse(a.LineItem.String())
+	if err != nil {
+		return []Result{}, errors.New("could not parse score URI")
+	}
+	resultURI.Path += "/results"
+	lineItemValues := a.LineItem.Query()
+	resultURI.RawQuery = lineItemValues.Encode()
+
+	fmt.Println(resultURI.String())
+
+	_, body, err := a.Target.makeServiceRequest(ServiceRequest{
+		Scopes:         scopes,
+		Method:         "GET",
+		URI:            resultURI,
+		Accept:         "application/vnd.ims.lis.v2.resultcontainer+json",
+		ExpectedStatus: http.StatusOK,
+	})
+	if err != nil {
+		return []Result{}, err
+	}
+
+	defer body.Close()
+	var results []Result
+	err = json.NewDecoder(body).Decode(&results)
+	if err != nil {
+		return []Result{}, errors.New("could not decode get result reponse body")
+	}
+	// if result.ScoreOf.Path != a.LineItem.Path {
+	// 	return Result{}, errors.New("result score of field did not match lineitem")
+	// }
+	// if result.ResultMaximum <= 0 {
+	// 	return Result{}, errors.New("invalid result maximum received")
+	// }
+
+	return results, nil
 }
