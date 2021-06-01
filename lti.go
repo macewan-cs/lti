@@ -11,12 +11,22 @@ package lti
 
 import (
 	"context"
+	"database/sql"
 	"net/http"
 
 	"github.com/macewan-cs/lti/connector"
+	dssql "github.com/macewan-cs/lti/datastore/sql"
 	"github.com/macewan-cs/lti/launch"
 	"github.com/macewan-cs/lti/login"
 )
+
+func NewSQLDatastoreConfig() dssql.Config {
+	return dssql.NewConfig()
+}
+
+func NewSQLDatastore(db *sql.DB, config dssql.Config) *dssql.Store {
+	return dssql.New(db, config)
+}
 
 func NewLoginConfig() login.Config {
 	return login.Config{}
