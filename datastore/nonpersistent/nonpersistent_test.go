@@ -9,11 +9,10 @@ import (
 	"net/url"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/macewan-cs/lti/datastore"
 )
-
-const accessTokenExpirySeconds = "3600"
 
 func TestNew(t *testing.T) {
 	actual := New()
@@ -91,9 +90,9 @@ func TestStoreAndFindDeploymentByDeploymentID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("find deployment error: %v", err)
 	}
-	// StoreDeployment accepts a string, not a datastore.Deployment, so the retrieved object should be only deeply
-	// equal.
-	if equal := reflect.DeepEqual(expected, actual); !equal {
+	// StoreDeployment accepts a string, not a datastore.Deployment, so the retrieved object should be deeply equal.
+	equal := reflect.DeepEqual(expected, actual)
+	if !equal {
 		t.Fatal("found deployment does not match stored deployment")
 	}
 
@@ -151,64 +150,129 @@ func TestStoreAndTestAndClearNonce(t *testing.T) {
 	}
 }
 
-// func TestStoreAndFindAccessToken(t *testing.T) {
-// 	tokenURI := "https://domain.tld/token"
-// 	clientID := "abcdef123456"
-// 	scopes := []string{"https://scope/1.readonly", "https://scope/2.delete"}
-// 	expected := "aaaa1.bbbb2.cccc3"
+func TestStoreAccessToken(t *testing.T) {
+	testToken := datastore.AccessToken{
+		TokenURI:   "https://domain.tld/token",
+		ClientID:   "abcdef123456",
+		Scopes:     []string{"https://scope/1.readonly", "https://scope/2.delete"},
+		Token:      "123456789abcdef",
+		ExpiryTime: time.Now().Add(-time.Minute * 30),
+	}
+	npStore := New()
 
-// expiry, err := time.ParseDuration(accessTokenExpirySeconds)
-// if err != nil {
-// 	t.Error("time duration parse error")
-// }
+	testToken.TokenURI = ""
+	err := npStore.StoreAccessToken(testToken)
+	if err.Error() != "received empty tokenURI" {
+		t.Error("error not reported for empty tokenURI")
+	}
+	testToken.TokenURI = "https://domain.tld/token"
 
-// 	npStore := New()
+	testToken.ClientID = ""
+	err = npStore.StoreAccessToken(testToken)
+	if err.Error() != "received empty clientID" {
+		t.Error("error not reported for empty clientID")
+	}
+	testToken.ClientID = "abcdef123456"
 
-// 	err := npStore.StoreAccessToken("", clientID, scopes, expected, accessTokenExpirySeconds)
-// 	if err.Error() != "received empty tokenURI argument" {
-// 		t.Error("error not reported for empty tokenURI")
-// 	}
-// 	err = npStore.StoreAccessToken(tokenURI, "", scopes, expected, accessTokenExpirySeconds)
-// 	if err.Error() != "received empty clientID argument" {
-// 		t.Error("error not reported for empty clientID")
-// 	}
-// 	err = npStore.StoreAccessToken(tokenURI, clientID, []string{}, expected, accessTokenExpirySeconds)
-// 	if err.Error() != "received empty scopes argument" {
-// 		t.Error("error not reported for empty scopes")
-// 	}
-// 	err = npStore.StoreAccessToken(tokenURI, clientID, scopes, "", accessTokenExpirySeconds)
-// 	if err.Error() != "received empty accessToken argument" {
-// 		t.Error("error not reported for empty token string")
-// 	}
-// 	err = npStore.StoreAccessToken(tokenURI, clientID, scopes, expected, "")
-// 	if err.Error() != "received empty expiresIn argument" {
-// 		t.Error("error not reported for empty expires in duration")
-// 	}
+	testToken.Scopes = []string{}
+	err = npStore.StoreAccessToken(testToken)
+	if err.Error() != "received empty scopes" {
+		t.Error("error not reported for empty scopes")
+	}
+	testToken.Scopes = []string{"https://scope/1.readonly", "https://scope/2.delete"}
 
-// 	err = npStore.StoreAccessToken(tokenURI, clientID, scopes, expected, accessTokenExpirySeconds)
-// 	if err != nil {
-// 		t.Fatal("access token storage failed")
-// 	}
+	testToken.Token = ""
+	err = npStore.StoreAccessToken(testToken)
+	if err.Error() != "received empty accessToken" {
+		t.Error("error not reported for empty token string")
+	}
+	testToken.Token = "123456789abcdef"
 
-// 	_, err = npStore.FindAccessToken("", clientID, scopes)
-// 	if err.Error() != "received empty tokenURI argument" {
-// 		t.Error("error not reported for empty tokenURI")
-// 	}
-// 	_, err = npStore.FindAccessToken(tokenURI, "", scopes)
-// 	if err.Error() != "received empty clientID argument" {
-// 		t.Error("error not reported for empty clientID")
-// 	}
-// 	_, err = npStore.FindAccessToken(tokenURI, clientID, []string{})
-// 	if err.Error() != "received empty scopes argument" {
-// 		t.Error("error not reported for empty scopes")
-// 	}
+	testToken.ExpiryTime = time.Time{}
+	err = npStore.StoreAccessToken(testToken)
+	if err.Error() != "received empty expiry time" {
+		t.Error("error not reported for empty expiry time")
+	}
+	testToken.ExpiryTime = time.Now().Add(-time.Minute * 30)
 
-// 	actual, err := npStore.FindAccessToken(tokenURI, clientID, scopes)
-// 	if err != nil {
-// 		t.Fatal("access token retrieval failed")
-// 	}
+	err = npStore.StoreAccessToken(testToken)
+	if err != nil {
+		t.Fatal("access token storage failed")
+	}
+}
 
-// 	if actual != expected {
-// 		t.Fatalf("incorrect token returned, wanted %s got %s", expected, actual)
-// 	}
-// }
+func TestFindAccessToken(t *testing.T) {
+	testToken := datastore.AccessToken{
+		TokenURI:   "https://domain.tld/token",
+		ClientID:   "abcdef123456",
+		Scopes:     []string{"https://scope/1.readonly", "https://scope/2.delete"},
+		Token:      "123456789abcdef",
+		ExpiryTime: time.Now().Add(-time.Minute * 30),
+	}
+	npStore := New()
+
+	testToken.TokenURI = ""
+	_, err := npStore.FindAccessToken(testToken)
+	if err.Error() != "received empty tokenURI" {
+		t.Error("error not reported for empty tokenURI")
+	}
+	testToken.TokenURI = "https://domain.tld/token"
+
+	testToken.ClientID = ""
+	_, err = npStore.FindAccessToken(testToken)
+	if err.Error() != "received empty clientID" {
+		t.Error("error not reported for empty clientID")
+	}
+	testToken.ClientID = "abcdef123456"
+
+	testToken.Scopes = []string{}
+	_, err = npStore.FindAccessToken(testToken)
+	if err.Error() != "received empty scopes" {
+		t.Error("error not reported for empty scopes")
+	}
+	testToken.Scopes = []string{"https://scope/1.readonly", "https://scope/2.delete"}
+
+	testToken.Token = ""
+	_, err = npStore.FindAccessToken(testToken)
+	if err.Error() != "received empty accessToken" {
+		t.Error("error not reported for empty token string")
+	}
+	testToken.Token = "123456789abcdef"
+
+	testToken.ExpiryTime = time.Time{}
+	_, err = npStore.FindAccessToken(testToken)
+	if err.Error() != "received empty expiry time" {
+		t.Error("error not reported for empty expiry time")
+	}
+	testToken.ExpiryTime = time.Now().Add(-time.Minute * 30)
+
+	testToken.ClientID = "nonexistent"
+	_, err = npStore.FindAccessToken(testToken)
+	if err.Error() != "no access token found" {
+		t.Error("error not reported for no token found")
+	}
+	testToken.ClientID = "abcdef123456"
+
+	err = npStore.StoreAccessToken(testToken)
+	if err != nil {
+		t.Fatal("could not store token for find test")
+	}
+	_, err = npStore.FindAccessToken(testToken)
+	if err.Error() != "access token has expired" {
+		t.Fatal("error not reported for expired token")
+	}
+
+	testToken.ExpiryTime = time.Now().Add(time.Minute * 30).Round(0)
+	err = npStore.StoreAccessToken(testToken)
+	if err != nil {
+		t.Fatal("could not store token for find test")
+	}
+	actual, err := npStore.FindAccessToken(testToken)
+	if err != nil {
+		t.Fatal("unexpected error reported")
+	}
+	equal := reflect.DeepEqual(testToken, actual)
+	if !equal {
+		t.Fatal("found token does not match test token")
+	}
+}

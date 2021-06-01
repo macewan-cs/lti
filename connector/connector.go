@@ -232,7 +232,7 @@ func (c *Connector) getRegistration() (datastore.Registration, error) {
 	return registration, nil
 }
 
-// PlatformKey gets the Platform's public key from the Registration Keyset URL.
+// PlatformKey gets the Platform's public key from the Registration Keyset URI.
 func (c *Connector) PlatformKey() (jwk.Set, error) {
 	registration, err := c.getRegistration()
 	if err != nil {
@@ -287,28 +287,28 @@ func (c *Connector) UpgradeAGS() (*AGS, error) {
 
 	lineItem, ok := agsMap["lineitem"]
 	if !ok {
-		return nil, errors.New("could not get lineitem URL")
+		return nil, errors.New("could not get lineitem URI")
 	}
 	lineItemString, ok := lineItem.(string)
 	if !ok {
-		return nil, errors.New("could not assert lineitem URL")
+		return nil, errors.New("could not assert lineitem URI")
 	}
 	lineItemURI, err := url.Parse(lineItemString)
 	if err != nil {
-		return nil, errors.New("could not parse lineitem URL")
+		return nil, errors.New("could not parse lineitem URI")
 	}
 
 	lineItems, ok := agsMap["lineitems"]
 	if !ok {
-		return nil, errors.New("could not get lineitems URL")
+		return nil, errors.New("could not get lineitems URI")
 	}
 	lineItemsString, ok := lineItems.(string)
 	if !ok {
-		return nil, errors.New("could not assert lineitems URL")
+		return nil, errors.New("could not assert lineitems URI")
 	}
 	lineItemsURI, err := url.Parse(lineItemsString)
 	if err != nil {
-		return nil, errors.New("could not parse lineitems URL")
+		return nil, errors.New("could not parse lineitems URI")
 	}
 
 	scope, ok := agsMap["scope"]
@@ -585,7 +585,7 @@ func (n *NRPS) GetPagedMembership(limit int) (Membership, bool, error) {
 		nextPageString := strings.Trim(nextPage, "<>")
 		nextPageURI, err := url.Parse(nextPageString)
 		if err != nil {
-			return Membership{}, false, errors.New("could not parse next page URL from response headers")
+			return Membership{}, false, errors.New("could not parse next page URI from response headers")
 		}
 		n.NextPage = nextPageURI
 		return membership, true, nil
@@ -599,8 +599,10 @@ func (a *AGS) PutScore(s Score) error {
 	scopes := []string{"https://purl.imsglobal.org/spec/lti-ags/scope/score"}
 
 	// Make a copy of the lineitem and add the /scores path.
-	var scoreURI *url.URL
-	*scoreURI = *a.LineItem
+	scoreURI, err := url.Parse(a.LineItem.String())
+	if err != nil {
+		return errors.New("could not parse score URI")
+	}
 	scoreURI.Path = scoreURI.Path + "/scores"
 	lineItemValues := a.LineItem.Query()
 	scoreURI.RawQuery = lineItemValues.Encode()
@@ -617,7 +619,7 @@ func (a *AGS) PutScore(s Score) error {
 	s.UserID = userID
 
 	var body bytes.Buffer
-	err := json.NewEncoder(&body).Encode(s)
+	err = json.NewEncoder(&body).Encode(s)
 	if err != nil {
 		return errors.New("could not encode body of score publish request")
 	}

@@ -150,7 +150,7 @@ func (s *Store) StoreLaunchData(launchID string, launchData json.RawMessage) err
 	return nil
 }
 
-// FindLaunchData retrives a cached launchData.
+// FindLaunchData retrieves a cached launchData.
 func (s *Store) FindLaunchData(launchID string) (json.RawMessage, error) {
 	if launchID == "" {
 		return nil, errors.New("received empty launchID argument")
@@ -168,7 +168,6 @@ func accessTokenIndex(tokenURI, clientID string, scopes []string) string {
 }
 
 // StoreAccessToken stores bearer tokens for potential reuse.
-// func (s *Store) StoreAccessToken(tokenURI, clientID string, scopes []string, accessToken, expiresIn string) error {
 func (s *Store) StoreAccessToken(token datastore.AccessToken) error {
 	if token.TokenURI == "" {
 		return errors.New("received empty tokenURI")
@@ -181,6 +180,10 @@ func (s *Store) StoreAccessToken(token datastore.AccessToken) error {
 	}
 	if token.Token == "" {
 		return errors.New("received empty accessToken")
+	}
+	zeroTime := time.Time{}
+	if token.ExpiryTime == zeroTime {
+		return errors.New("received empty expiry time")
 	}
 
 	sort.Strings(token.Scopes)
@@ -195,7 +198,6 @@ func (s *Store) StoreAccessToken(token datastore.AccessToken) error {
 }
 
 // StoreAccessToken retrieves bearer tokens for potential reuse.
-//func (s *Store) FindAccessToken(tokenURI, clientID string, scopes []string) (string, error) {
 func (s *Store) FindAccessToken(token datastore.AccessToken) (datastore.AccessToken, error) {
 	if token.TokenURI == "" {
 		return datastore.AccessToken{}, errors.New("received empty tokenURI")
@@ -205,6 +207,13 @@ func (s *Store) FindAccessToken(token datastore.AccessToken) (datastore.AccessTo
 	}
 	if len(token.Scopes) == 0 {
 		return datastore.AccessToken{}, errors.New("received empty scopes")
+	}
+	if token.Token == "" {
+		return datastore.AccessToken{}, errors.New("received empty accessToken")
+	}
+	zeroTime := time.Time{}
+	if token.ExpiryTime == zeroTime {
+		return datastore.AccessToken{}, errors.New("received empty expiry time")
 	}
 
 	index := accessTokenIndex(token.TokenURI, token.ClientID, token.Scopes)
