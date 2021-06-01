@@ -96,6 +96,7 @@ func (l *Login) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	redirectURI, stateCookie, err := l.RedirectURI(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 	http.SetCookie(w, &stateCookie)
 	http.Redirect(w, r, redirectURI, http.StatusFound)
