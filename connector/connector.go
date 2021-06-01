@@ -592,6 +592,56 @@ func (n *NRPS) GetPagedMembership(limit int) (Membership, bool, error) {
 	}
 }
 
+// GetLaunchingMember returns a Member struct representing the user that performed the launch. Notable omissions
+// include Status and Roles, which are not included in the launch message.
+func (n *NRPS) GetLaunchingMember() (Member, error) {
+	var launchingMember Member
+
+	launchEmail, ok := n.Target.LaunchToken.Get("email")
+	if !ok {
+		return Member{}, errors.New("launching member email not found")
+	}
+	launchEmailString, ok := launchEmail.(string)
+	if !ok {
+		return Member{}, errors.New("could not assert launching member email")
+	}
+	launchingMember.Email = launchEmailString
+
+	familyName, ok := n.Target.LaunchToken.Get("family_name")
+	if !ok {
+		return Member{}, errors.New("launching member family name not found")
+	}
+	familyNameString, ok := familyName.(string)
+	if !ok {
+		return Member{}, errors.New("could not assert launching member family name")
+	}
+	launchingMember.FamilyName = familyNameString
+
+	givenName, ok := n.Target.LaunchToken.Get("given_name")
+	if !ok {
+		return Member{}, errors.New("launching member family name not found")
+	}
+	givenNameString, ok := givenName.(string)
+	if !ok {
+		return Member{}, errors.New("could not assert launching member family name")
+	}
+	launchingMember.GivenName = givenNameString
+
+	name, ok := n.Target.LaunchToken.Get("name")
+	if !ok {
+		return Member{}, errors.New("launching member name not found")
+	}
+	nameString, ok := name.(string)
+	if !ok {
+		return Member{}, errors.New("could not assert launching member name")
+	}
+	launchingMember.Name = nameString
+
+	launchingMember.UserID = n.Target.LaunchToken.Subject()
+
+	return launchingMember, nil
+}
+
 // AGS Methods.
 
 // PutScore posts a grade (LTI spec uses term 'score') for the launched resource to the platform's gradebook.
