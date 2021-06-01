@@ -603,7 +603,7 @@ func (a *AGS) PutScore(s Score) error {
 	if err != nil {
 		return errors.New("could not parse score URI")
 	}
-	scoreURI.Path = scoreURI.Path + "/scores"
+	scoreURI.Path += "/scores"
 	lineItemValues := a.LineItem.Query()
 	scoreURI.RawQuery = lineItemValues.Encode()
 
