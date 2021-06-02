@@ -283,17 +283,17 @@ func validateVersionAndMessageType(verifiedToken jwt.Token) (int, error) {
 
 // validateResourceLink verifies the resource link and ID.
 func validateResourceLink(verifiedToken jwt.Token) (int, error) {
-	resourceLink, ok := verifiedToken.Get("https://purl.imsglobal.org/spec/lti/claim/resource_link")
+	rawResourceLink, ok := verifiedToken.Get("https://purl.imsglobal.org/spec/lti/claim/resource_link")
 	if !ok {
 		return http.StatusBadRequest, errors.New("resource link not found in request")
 	}
 
-	resourceLinkMap, ok := resourceLink.(map[string]interface{})
+	resourceLink, ok := rawResourceLink.(map[string]interface{})
 	if !ok {
 		return http.StatusBadRequest, errors.New("resource link improperly formatted")
 	}
 
-	resourceLinkID, ok := resourceLinkMap["id"]
+	resourceLinkID, ok := resourceLink["id"]
 	if !ok {
 		return http.StatusBadRequest, errors.New("resource link ID not found")
 	}

@@ -260,25 +260,25 @@ func (c *Connector) PlatformKey() (jwk.Set, error) {
 // UpgradeNRPS provides a Connector upgraded for NRPS calls.
 func (c *Connector) UpgradeNRPS() (*NRPS, error) {
 	// Check for endpoint.
-	nrpsClaim, ok := c.LaunchToken.Get("https://purl.imsglobal.org/spec/lti-nrps/claim/namesroleservice")
+	nrpsRawClaim, ok := c.LaunchToken.Get("https://purl.imsglobal.org/spec/lti-nrps/claim/namesroleservice")
 	if !ok {
 		return nil, errors.New("names and roles endpoint not found in launch data")
 	}
-	nrpsMap, ok := nrpsClaim.(map[string]interface{})
+	nrpsClaim, ok := nrpsRawClaim.(map[string]interface{})
 	if !ok {
 		return nil, errors.New("names and roles information improperly formatted")
 	}
-	nrpsVal, ok := nrpsMap["context_memberships_url"]
+	nrpsString, ok := nrpsClaim["context_memberships_url"]
 	if !ok {
 		return nil, errors.New("names and roles endpoint not found")
 	}
-	nrpsURI, err := url.Parse(nrpsVal.(string))
+	nrps, err := url.Parse(nrpsString.(string))
 	if err != nil {
 		return nil, errors.New("names and roles endpoint improperly formatted")
 	}
 
 	return &NRPS{
-		Endpoint: nrpsURI,
+		Endpoint: nrps,
 		Target:   c,
 	}, nil
 }
@@ -478,7 +478,8 @@ func (c *Connector) makeServiceRequest(s ServiceRequest) (http.Header, io.ReadCl
 	if len(s.Scopes) == 0 {
 		return nil, nil, errors.New("empty scope for service request")
 	}
-	if s.ContentType == "" && strings.ToUpper(s.Method) == http.MethodPost {
+	method := strings.ToUpper(s.Method)
+	if (method == http.MethodPost || method == http.MethodPut) && s.ContentType == "" {
 		s.ContentType = "application/json"
 	}
 	if s.Accept == "" {
@@ -548,23 +549,22 @@ func (n *NRPS) GetPagedMembership(limit int) (Membership, bool, error) {
 	}
 	scopes := []string{"https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"}
 
-	existingValues, err := url.ParseQuery(n.Endpoint.RawQuery)
+	query, err := url.ParseQuery(n.Endpoint.RawQuery)
 	if err != nil {
 		return Membership{}, false, errors.New("could not parse NRPS query values")
 	}
-	existingValues.Add("limit", strconv.Itoa(limit))
+	query.Add("limit", strconv.Itoa(limit))
 
 	// Set the initial limit query parameter.
 	pagedURI, err := url.Parse(n.Endpoint.String())
 	if err != nil {
 		return Membership{}, false, errors.New("could not parse NRPS endpoint")
 	}
-	pagedURI.RawQuery = existingValues.Encode()
+	pagedURI.RawQuery = query.Encode()
 	s := ServiceRequest{
 		Scopes:         scopes,
 		Method:         http.MethodGet,
 		URI:            pagedURI,
-		Body:           nil,
 		Accept:         "application/vnd.ims.lti-nrps.v2.membershipcontainer+json",
 		ExpectedStatus: http.StatusOK,
 	}
@@ -586,18 +586,18 @@ func (n *NRPS) GetPagedMembership(limit int) (Membership, bool, error) {
 	}
 
 	// Get the next page link from the response headers.
-	nextPage := headers.Get("link")
-	if nextPage == "" {
+	nextPageLink := headers.Get("link")
+	if nextPageLink == "" || !strings.Contains(nextPageLink, `rel="next"`) {
 		// If there are no further next page links, set the NRPS NextPage field to nil.
 		n.NextPage = nil
 		return membership, false, nil
 	} else {
-		nextPageString := strings.Trim(nextPage, "<>")
-		nextPageURI, err := url.Parse(nextPageString)
+		nextPageString := strings.Trim(nextPageLink, "<>")
+		nextPage, err := url.Parse(nextPageString)
 		if err != nil {
 			return Membership{}, false, errors.New("could not parse next page URI from response headers")
 		}
-		n.NextPage = nextPageURI
+		n.NextPage = nextPage
 		return membership, true, nil
 	}
 }
@@ -607,45 +607,45 @@ func (n *NRPS) GetPagedMembership(limit int) (Membership, bool, error) {
 func (n *NRPS) GetLaunchingMember() (Member, error) {
 	var launchingMember Member
 
-	launchEmail, ok := n.Target.LaunchToken.Get("email")
+	rawLaunchEmail, ok := n.Target.LaunchToken.Get("email")
 	if !ok {
 		return Member{}, errors.New("launching member email not found")
 	}
-	launchEmailString, ok := launchEmail.(string)
+	launchEmail, ok := rawLaunchEmail.(string)
 	if !ok {
 		return Member{}, errors.New("could not assert launching member email")
 	}
-	launchingMember.Email = launchEmailString
+	launchingMember.Email = launchEmail
 
-	familyName, ok := n.Target.LaunchToken.Get("family_name")
+	rawFamilyName, ok := n.Target.LaunchToken.Get("family_name")
 	if !ok {
 		return Member{}, errors.New("launching member family name not found")
 	}
-	familyNameString, ok := familyName.(string)
+	familyName, ok := rawFamilyName.(string)
 	if !ok {
 		return Member{}, errors.New("could not assert launching member family name")
 	}
-	launchingMember.FamilyName = familyNameString
+	launchingMember.FamilyName = familyName
 
-	givenName, ok := n.Target.LaunchToken.Get("given_name")
+	rawGivenName, ok := n.Target.LaunchToken.Get("given_name")
 	if !ok {
 		return Member{}, errors.New("launching member family name not found")
 	}
-	givenNameString, ok := givenName.(string)
+	givenName, ok := rawGivenName.(string)
 	if !ok {
 		return Member{}, errors.New("could not assert launching member family name")
 	}
-	launchingMember.GivenName = givenNameString
+	launchingMember.GivenName = givenName
 
-	name, ok := n.Target.LaunchToken.Get("name")
+	rawName, ok := n.Target.LaunchToken.Get("name")
 	if !ok {
 		return Member{}, errors.New("launching member name not found")
 	}
-	nameString, ok := name.(string)
+	name, ok := rawName.(string)
 	if !ok {
 		return Member{}, errors.New("could not assert launching member name")
 	}
-	launchingMember.Name = nameString
+	launchingMember.Name = name
 
 	launchingMember.UserID = n.Target.LaunchToken.Subject()
 
@@ -664,8 +664,8 @@ func (a *AGS) PutScore(s Score) error {
 		return errors.New("could not parse score URI")
 	}
 	scoreURI.Path += "/scores"
-	lineItemValues := a.LineItem.Query()
-	scoreURI.RawQuery = lineItemValues.Encode()
+	query := a.LineItem.Query()
+	scoreURI.RawQuery = query.Encode()
 
 	// The launch data 'sub' claim is the launching user_ID.
 	userIDClaim, ok := a.Target.LaunchToken.Get("sub")
@@ -709,8 +709,8 @@ func (a *AGS) GetResults() ([]Result, error) {
 		return []Result{}, errors.New("could not parse score URI")
 	}
 	resultURI.Path += "/results"
-	lineItemValues := a.LineItem.Query()
-	resultURI.RawQuery = lineItemValues.Encode()
+	query := a.LineItem.Query()
+	resultURI.RawQuery = query.Encode()
 
 	fmt.Println(resultURI.String())
 
