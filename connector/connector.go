@@ -31,9 +31,10 @@ import (
 	"github.com/macewan-cs/lti/datastore/nonpersistent"
 )
 
-// Access Token validity period in seconds. Clock skew allowance in minutes.
 const (
+	// Access Token request JWT Expiration validity period in seconds.
 	AccessTokenTimeoutSeconds = 3600
+	// Access Token request JWT IssuedAt clock skew allowance in minutes.
 	ClockSkewAllowanceMinutes = 2
 )
 
