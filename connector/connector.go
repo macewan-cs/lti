@@ -330,14 +330,7 @@ func (c *Connector) UpgradeAGS() (*AGS, error) {
 	if !ok {
 		return nil, errors.New("could not assert AGS scopes")
 	}
-	var scopes []string
-	for _, v := range scopeInterfaces {
-		s, ok := v.(string)
-		if !ok {
-			return nil, errors.New("could not assert an AGS scope")
-		}
-		scopes = append(scopes, s)
-	}
+	scopes := convertInterfaceToStringSlice(scopeInterfaces)
 
 	return &AGS{
 		LineItem:  lineItem,
@@ -345,6 +338,14 @@ func (c *Connector) UpgradeAGS() (*AGS, error) {
 		Scopes:    scopes,
 		Target:    c,
 	}, nil
+}
+
+func convertInterfaceToStringSlice(input []interface{}) []string {
+	output := make([]string, len(input))
+	for i, v := range input {
+		output[i] = fmt.Sprint(v)
+	}
+	return output
 }
 
 // checkAccessTokenStore looks for a suitable, non-expired access token in storage.
