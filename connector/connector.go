@@ -395,7 +395,7 @@ func (c *Connector) createRequest(tokenURI, clientID string, scopes []string) (*
 	requestValues.Add("client_assertion", string(signedToken))
 	requestValues.Add("scope", scopeValue)
 	requestBody := strings.NewReader(requestValues.Encode())
-	request, err := http.NewRequest("POST", tokenURI, requestBody)
+	request, err := http.NewRequest(http.MethodPost, tokenURI, requestBody)
 	if err != nil {
 		return nil, errors.New("could not create http request for get access token")
 	}
@@ -478,7 +478,7 @@ func (c *Connector) makeServiceRequest(s ServiceRequest) (http.Header, io.ReadCl
 	if len(s.Scopes) == 0 {
 		return nil, nil, errors.New("empty scope for service request")
 	}
-	if s.ContentType == "" && strings.ToUpper(s.Method) == "POST" {
+	if s.ContentType == "" && strings.ToUpper(s.Method) == http.MethodPost {
 		s.ContentType = "application/json"
 	}
 	if s.Accept == "" {
@@ -521,7 +521,7 @@ func (n *NRPS) GetMembership() (Membership, error) {
 
 	_, body, err := n.Target.makeServiceRequest(ServiceRequest{
 		Scopes:         scopes,
-		Method:         "GET",
+		Method:         http.MethodGet,
 		URI:            n.Endpoint,
 		Body:           nil,
 		Accept:         "application/vnd.ims.lti-nrps.v2.membershipcontainer+json",
@@ -562,7 +562,7 @@ func (n *NRPS) GetPagedMembership(limit int) (Membership, bool, error) {
 	pagedURI.RawQuery = existingValues.Encode()
 	s := ServiceRequest{
 		Scopes:         scopes,
-		Method:         "GET",
+		Method:         http.MethodGet,
 		URI:            pagedURI,
 		Body:           nil,
 		Accept:         "application/vnd.ims.lti-nrps.v2.membershipcontainer+json",
@@ -686,7 +686,7 @@ func (a *AGS) PutScore(s Score) error {
 
 	_, _, err = a.Target.makeServiceRequest(ServiceRequest{
 		Scopes:         scopes,
-		Method:         "POST",
+		Method:         http.MethodPost,
 		URI:            scoreURI,
 		Body:           &body,
 		ContentType:    "application/vnd.ims.lis.v1.score+json",
@@ -716,7 +716,7 @@ func (a *AGS) GetResults() ([]Result, error) {
 
 	_, body, err := a.Target.makeServiceRequest(ServiceRequest{
 		Scopes:         scopes,
-		Method:         "GET",
+		Method:         http.MethodGet,
 		URI:            resultURI,
 		Accept:         "application/vnd.ims.lis.v2.resultcontainer+json",
 		ExpectedStatus: http.StatusOK,

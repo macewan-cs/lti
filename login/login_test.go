@@ -7,6 +7,7 @@ package login
 
 import (
 	"bytes"
+	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"testing"
@@ -54,7 +55,7 @@ func TestValidate(t *testing.T) {
 	login := New(Config{})
 	login.cfg.Registrations.StoreRegistration(getRegistration())
 
-	r := httptest.NewRequest("POST", "https://tool.tld/login", bytes.NewReader([]byte("")))
+	r := httptest.NewRequest(http.MethodPost, "https://tool.tld/login", bytes.NewReader([]byte("")))
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	expected := "issuer not found in login request"
 	_, actual := login.validate(r)
@@ -62,7 +63,7 @@ func TestValidate(t *testing.T) {
 		t.Fatalf("validate error: %v", actual)
 	}
 
-	r = httptest.NewRequest("POST", "https://tool.tld/login", bytes.NewReader(
+	r = httptest.NewRequest(http.MethodPost, "https://tool.tld/login", bytes.NewReader(
 		[]byte("iss=https://platform.tld/instance")))
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	expected = "login hint not found in login request"
@@ -71,7 +72,7 @@ func TestValidate(t *testing.T) {
 		t.Fatalf("validate error: %v", actual)
 	}
 
-	r = httptest.NewRequest("POST", "https://tool.tld/login", bytes.NewReader(
+	r = httptest.NewRequest(http.MethodPost, "https://tool.tld/login", bytes.NewReader(
 		[]byte("iss=https://platform.tld/instance&login_hint=1")))
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	expected = "target link uri not found in login request"
@@ -80,7 +81,7 @@ func TestValidate(t *testing.T) {
 		t.Fatalf("validate error: %v", actual)
 	}
 
-	r = httptest.NewRequest("POST", "https://tool.tld/login", bytes.NewReader(
+	r = httptest.NewRequest(http.MethodPost, "https://tool.tld/login", bytes.NewReader(
 		[]byte("iss=https://platform.tld/instance&login_hint=1&target_link_uri=https://tool.tld")))
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	_, actual = login.validate(r)
@@ -94,7 +95,7 @@ func TestRedirectURI(t *testing.T) {
 	login := New(Config{})
 	login.cfg.Registrations.StoreRegistration(getRegistration())
 
-	r := httptest.NewRequest("POST", "https://tool.tld/login", bytes.NewReader(getPostBody()))
+	r := httptest.NewRequest(http.MethodPost, "https://tool.tld/login", bytes.NewReader(getPostBody()))
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	redirect, cookie, err := login.RedirectURI(r)
