@@ -183,6 +183,16 @@ func TestStoreDeployment(t *testing.T) {
 	if err != nil {
 		t.Fatalf("cannot store deployment")
 	}
+
+	err = store.StoreDeployment("", "b")
+	if err == nil {
+		t.Errorf("issuer not validated")
+	}
+
+	err = store.StoreDeployment("a", "")
+	if err == nil {
+		t.Errorf("deployment ID not validated")
+	}
 }
 
 func TestFindDeployment(t *testing.T) {
@@ -226,5 +236,17 @@ func TestFindDeployment(t *testing.T) {
 	deployment, err = store.FindDeployment("unknown", "unknown")
 	if err == nil {
 		t.Fatalf("unexpectedly found deployment: %#v", deployment)
+	}
+
+	_, err = store.FindDeployment("", "b")
+	if err == nil {
+		// It should probably be checking for a specific error.
+		t.Fatalf("issuer not validated")
+	}
+
+	_, err = store.FindDeployment("a", "")
+	if err == nil {
+		// It should probably be checking for a specific error.
+		t.Fatalf("deployment ID not validated")
 	}
 }
