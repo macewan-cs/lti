@@ -59,7 +59,7 @@ func (s *Store) StoreDeployment(issuer, deploymentID string) error {
 		return errors.New("received empty issuer argument")
 	}
 	if err := datastore.ValidateDeploymentID(deploymentID); err != nil {
-		return fmt.Errorf("received invalid deployment ID: %v", err)
+		return fmt.Errorf("received invalid deployment ID: %w", err)
 	}
 
 	s.Deployments.Store(deploymentIndex(issuer, deploymentID),
@@ -88,7 +88,7 @@ func (s *Store) FindDeployment(issuer, deploymentID string) (datastore.Deploymen
 		return datastore.Deployment{}, errors.New("received empty issuer argument")
 	}
 	if err := datastore.ValidateDeploymentID(deploymentID); err != nil {
-		return datastore.Deployment{}, fmt.Errorf("received invalid deployment ID: %v", err)
+		return datastore.Deployment{}, fmt.Errorf("received invalid deployment ID: %w", err)
 	}
 
 	deployment, ok := s.Deployments.Load(deploymentIndex(issuer, deploymentID))
@@ -190,7 +190,7 @@ func (s *Store) StoreAccessToken(token datastore.AccessToken) error {
 
 	storeValue, err := json.Marshal(token)
 	if err != nil {
-		return errors.New("error encoding access token to store")
+		return fmt.Errorf("error encoding access token to store: %w", err)
 	}
 
 	s.AccessTokens.Store(accessTokenIndex(token.TokenURI, token.ClientID, token.Scopes), storeValue)
@@ -229,7 +229,7 @@ func (s *Store) FindAccessToken(token datastore.AccessToken) (datastore.AccessTo
 	var accessToken datastore.AccessToken
 	err := json.Unmarshal(storeBytes, &accessToken)
 	if err != nil {
-		return datastore.AccessToken{}, errors.New("could not decode access token")
+		return datastore.AccessToken{}, fmt.Errorf("could not decode access token: %w", err)
 	}
 	if accessToken.ExpiryTime.Before(time.Now()) {
 		return datastore.AccessToken{}, errors.New("access token has expired")

@@ -53,7 +53,7 @@ var maximumDeploymentIDLength = 255
 // ValidateDeploymentID validates a deployment ID.
 func ValidateDeploymentID(deploymentID string) error {
 	if len(deploymentID) == 0 {
-		return errors.New("empty")
+		return errors.New("empty deployment ID")
 	}
 	if len(deploymentID) > maximumDeploymentIDLength {
 		return fmt.Errorf("exceeds maximum length (%d)", maximumDeploymentIDLength)

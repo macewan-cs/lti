@@ -79,7 +79,7 @@ func New(cfg datastore.Config, launchID string) (*Connector, error) {
 
 	err := connector.setLaunchTokenFromLaunchData(launchID)
 	if err != nil {
-		return nil, fmt.Errorf("connector made with empty launch data using launch ID %s", launchID)
+		return nil, fmt.Errorf("connector made with empty launch data using launch ID %s: %w", launchID, err)
 	}
 
 	return &connector, nil
@@ -98,7 +98,7 @@ func (c *Connector) SetSigningKey(pemPrivateKey string) error {
 	}
 	rsaPrivateKey, err := x509.ParsePKCS1PrivateKey(pemBlock.Bytes)
 	if err != nil {
-		return errors.New("failed to parse RSA key")
+		return fmt.Errorf("failed to parse RSA key: %w", err)
 	}
 
 	c.SigningKey = rsaPrivateKey
@@ -119,11 +119,11 @@ func (c *Connector) setLaunchTokenFromLaunchData(launchId string) error {
 	}
 	launchData, err := rawLaunchData.MarshalJSON()
 	if err != nil {
-		return errors.New("error decoding launch data")
+		return fmt.Errorf("error decoding launch data: %w", err)
 	}
 	idTokenPayload, err := jwt.Parse(launchData)
 	if err != nil {
-		return errors.New("error encoding launch data token")
+		return fmt.Errorf("error encoding launch data token: %w", err)
 	}
 
 	c.LaunchToken = idTokenPayload
@@ -150,7 +150,7 @@ func (c *Connector) PlatformKey() (jwk.Set, error) {
 
 	keyset, err := jwk.Fetch(context.Background(), registration.KeysetURI.String())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error fetching keyset: %w", err)
 	}
 
 	return keyset, nil
@@ -173,7 +173,7 @@ func (c *Connector) UpgradeNRPS() (*NRPS, error) {
 	}
 	nrps, err := url.Parse(nrpsString.(string))
 	if err != nil {
-		return nil, errors.New("names and roles endpoint improperly formatted")
+		return nil, fmt.Errorf("names and roles endpoint parse error: %w", err)
 	}
 
 	return &NRPS{
@@ -204,7 +204,7 @@ func (c *Connector) UpgradeAGS() (*AGS, error) {
 	}
 	lineItem, err := url.Parse(lineItemString)
 	if err != nil {
-		return nil, errors.New("could not parse lineitem URI")
+		return nil, fmt.Errorf("could not parse lineitem URI: %w", err)
 	}
 
 	rawLineItems, ok := agsClaims["lineitems"]
@@ -217,7 +217,7 @@ func (c *Connector) UpgradeAGS() (*AGS, error) {
 	}
 	lineItems, err := url.Parse(lineItemsString)
 	if err != nil {
-		return nil, errors.New("could not parse lineitems URI")
+		return nil, fmt.Errorf("could not parse lineitems URI: %w", err)
 	}
 
 	scope, ok := agsClaims["scope"]
@@ -256,7 +256,7 @@ func (c *Connector) checkAccessTokenStore(tokenURI, clientID string, scopes []st
 
 	foundToken, err := c.cfg.AccessTokens.FindAccessToken(searchToken)
 	if err != nil {
-		return datastore.AccessToken{}, errors.New("suitable access token not found")
+		return datastore.AccessToken{}, fmt.Errorf("suitable access token not found: %w", err)
 	}
 	if foundToken.ExpiryTime.Before(time.Now()) {
 		return datastore.AccessToken{}, errors.New("access token found but has expired")
@@ -281,7 +281,7 @@ func (c *Connector) createRequest(tokenURI, clientID string, scopes []string) (*
 	}
 	signedToken, err := jwt.Sign(token, jwa.RS256, key)
 	if err != nil {
-		return nil, errors.New("failed to sign bearer request token")
+		return nil, fmt.Errorf("failed to sign bearer request token: %w", err)
 	}
 
 	var scopeValue string
@@ -297,7 +297,7 @@ func (c *Connector) createRequest(tokenURI, clientID string, scopes []string) (*
 	requestBody := strings.NewReader(requestValues.Encode())
 	request, err := http.NewRequest(http.MethodPost, tokenURI, requestBody)
 	if err != nil {
-		return nil, errors.New("could not create http request for get access token")
+		return nil, fmt.Errorf("could not create http request for get access token: %w", err)
 	}
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
@@ -309,7 +309,7 @@ func sendRequest(req *http.Request) (datastore.AccessToken, error) {
 	client := &http.Client{Timeout: timeout}
 	response, err := client.Do(req)
 	if err != nil {
-		return datastore.AccessToken{}, err
+		return datastore.AccessToken{}, fmt.Errorf("send request error: %w", err)
 	}
 	if response.StatusCode != http.StatusOK {
 		return datastore.AccessToken{}, fmt.Errorf("access token request got response status %s",
@@ -320,7 +320,7 @@ func sendRequest(req *http.Request) (datastore.AccessToken, error) {
 	var responseBody map[string]interface{}
 	err = json.NewDecoder(response.Body).Decode(&responseBody)
 	if err != nil {
-		return datastore.AccessToken{}, errors.New("could not decode access token reponse body")
+		return datastore.AccessToken{}, fmt.Errorf("could not decode access token reponse body: %w", err)
 	}
 
 	responseToken, ok := responseBody["access_token"].(string)
@@ -333,7 +333,7 @@ func sendRequest(req *http.Request) (datastore.AccessToken, error) {
 	}
 	expiry, err := time.ParseDuration(strconv.FormatFloat(expiresIn, 'f', -1, 64) + "s")
 	if err != nil {
-		return datastore.AccessToken{}, errors.New("could not determine access token expiry time")
+		return datastore.AccessToken{}, fmt.Errorf("could not determine access token expiry time: %w", err)
 	}
 
 	return datastore.AccessToken{
@@ -347,7 +347,7 @@ func sendRequest(req *http.Request) (datastore.AccessToken, error) {
 func (c *Connector) GetAccessToken(scopes []string) error {
 	registration, err := c.getRegistration()
 	if err != nil {
-		return err
+		return fmt.Errorf("get registration for access token: %w", err)
 	}
 
 	storedToken, err := c.checkAccessTokenStore(registration.AuthTokenURI.String(), registration.ClientID, scopes)
@@ -358,11 +358,11 @@ func (c *Connector) GetAccessToken(scopes []string) error {
 
 	request, err := c.createRequest(registration.AuthTokenURI.String(), registration.ClientID, scopes)
 	if err != nil {
-		return err
+		return fmt.Errorf("create request for access token: %w", err)
 	}
 	responseToken, err := sendRequest(request)
 	if err != nil {
-		return err
+		return fmt.Errorf("send request for access token: %w", err)
 	}
 	responseToken.ClientID = registration.ClientID
 	responseToken.Scopes = scopes
@@ -391,12 +391,12 @@ func (c *Connector) makeServiceRequest(s ServiceRequest) (http.Header, io.ReadCl
 
 	err := c.GetAccessToken(s.Scopes)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("get access token for service request: %w", err)
 	}
 
 	request, err := http.NewRequest(s.Method, s.URI.String(), s.Body)
 	if err != nil {
-		return nil, nil, errors.New("could not create http request for service request")
+		return nil, nil, fmt.Errorf("could not create http request for service request: %w", err)
 	}
 	request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.AccessToken.Token))
 	request.Header.Set("Accept", s.Accept)
@@ -405,7 +405,7 @@ func (c *Connector) makeServiceRequest(s ServiceRequest) (http.Header, io.ReadCl
 	client := &http.Client{Timeout: timeout}
 	response, err := client.Do(request)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("make service request client error: %w", err)
 	}
 	if response.StatusCode != s.ExpectedStatus {
 		return nil, nil, fmt.Errorf("service request got response status %s", http.StatusText(response.StatusCode))

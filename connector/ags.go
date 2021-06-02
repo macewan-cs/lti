@@ -78,7 +78,7 @@ func (a *AGS) PutScore(s Score) error {
 	// Make a copy of the lineitem and add the /scores path.
 	scoreURI, err := url.Parse(a.LineItem.String())
 	if err != nil {
-		return errors.New("could not parse score URI")
+		return fmt.Errorf("could not parse score URI: %w", err)
 	}
 	scoreURI.Path += "/scores"
 	query := a.LineItem.Query()
@@ -98,7 +98,7 @@ func (a *AGS) PutScore(s Score) error {
 	var body bytes.Buffer
 	err = json.NewEncoder(&body).Encode(s)
 	if err != nil {
-		return errors.New("could not encode body of score publish request")
+		return fmt.Errorf("could not encode body of score publish request: %w", err)
 	}
 
 	_, _, err = a.Target.makeServiceRequest(ServiceRequest{
@@ -110,7 +110,7 @@ func (a *AGS) PutScore(s Score) error {
 		ExpectedStatus: http.StatusOK,
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("put score make service request error: %w", err)
 	}
 
 	return nil
@@ -123,7 +123,7 @@ func (a *AGS) GetResults() ([]Result, error) {
 	// Make a copy of the lineitem and add the /scores path.
 	resultURI, err := url.Parse(a.LineItem.String())
 	if err != nil {
-		return []Result{}, errors.New("could not parse score URI")
+		return []Result{}, fmt.Errorf("could not parse score URI: %w", err)
 	}
 	resultURI.Path += "/results"
 	query := a.LineItem.Query()
@@ -139,14 +139,14 @@ func (a *AGS) GetResults() ([]Result, error) {
 		ExpectedStatus: http.StatusOK,
 	})
 	if err != nil {
-		return []Result{}, err
+		return []Result{}, fmt.Errorf("get results make service request error: %w", err)
 	}
 
 	defer body.Close()
 	var results []Result
 	err = json.NewDecoder(body).Decode(&results)
 	if err != nil {
-		return []Result{}, errors.New("could not decode get result reponse body")
+		return []Result{}, fmt.Errorf("could not decode get result reponse body: %w", err)
 	}
 	// if result.ScoreOf.Path != a.LineItem.Path {
 	// 	return Result{}, errors.New("result score of field did not match lineitem")

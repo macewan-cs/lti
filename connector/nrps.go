@@ -8,6 +8,7 @@ package connector
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -62,14 +63,14 @@ func (n *NRPS) GetMembership() (Membership, error) {
 		ExpectedStatus: http.StatusOK,
 	})
 	if err != nil {
-		return Membership{}, err
+		return Membership{}, fmt.Errorf("get membership make service request error: %w", err)
 	}
 
 	defer body.Close()
 	var membership Membership
 	err = json.NewDecoder(body).Decode(&membership)
 	if err != nil {
-		return Membership{}, errors.New("could not decode get membership reponse body")
+		return Membership{}, fmt.Errorf("could not decode get membership reponse body: %w", err)
 	}
 
 	return membership, nil
@@ -84,14 +85,14 @@ func (n *NRPS) GetPagedMembership(limit int) (Membership, bool, error) {
 
 	query, err := url.ParseQuery(n.Endpoint.RawQuery)
 	if err != nil {
-		return Membership{}, false, errors.New("could not parse NRPS query values")
+		return Membership{}, false, fmt.Errorf("could not parse NRPS query values: %w", err)
 	}
 	query.Add("limit", strconv.Itoa(limit))
 
 	// Set the initial limit query parameter.
 	pagedURI, err := url.Parse(n.Endpoint.String())
 	if err != nil {
-		return Membership{}, false, errors.New("could not parse NRPS endpoint")
+		return Membership{}, false, fmt.Errorf("could not parse NRPS endpoint: %w", err)
 	}
 	pagedURI.RawQuery = query.Encode()
 	s := ServiceRequest{
@@ -108,14 +109,14 @@ func (n *NRPS) GetPagedMembership(limit int) (Membership, bool, error) {
 	}
 	headers, body, err := n.Target.makeServiceRequest(s)
 	if err != nil {
-		return Membership{}, false, err
+		return Membership{}, false, fmt.Errorf("get paged membership make service request error: %w", err)
 	}
 
 	defer body.Close()
 	var membership Membership
 	err = json.NewDecoder(body).Decode(&membership)
 	if err != nil {
-		return Membership{}, false, errors.New("could not decode get membership reponse body")
+		return Membership{}, false, fmt.Errorf("could not decode get paged membership reponse body: %w", err)
 	}
 
 	// Get the next page link from the response headers.
@@ -128,7 +129,7 @@ func (n *NRPS) GetPagedMembership(limit int) (Membership, bool, error) {
 		nextPageString := strings.Trim(nextPageLink, "<>")
 		nextPage, err := url.Parse(nextPageString)
 		if err != nil {
-			return Membership{}, false, errors.New("could not parse next page URI from response headers")
+			return Membership{}, false, fmt.Errorf("could not parse next page URI from response headers: %w", err)
 		}
 		n.NextPage = nextPage
 		return membership, true, nil

@@ -138,7 +138,7 @@ func getRawToken(r *http.Request) ([]byte, int, error) {
 	idToken := []byte(r.FormValue("id_token"))
 	_, err := jwt.Parse(idToken)
 	if err != nil {
-		return nil, http.StatusBadRequest, err
+		return nil, http.StatusBadRequest, fmt.Errorf("get raw token: %w", err)
 	}
 
 	return idToken, http.StatusOK, nil
@@ -148,7 +148,7 @@ func getRawToken(r *http.Request) ([]byte, int, error) {
 func validateRegistration(rawToken []byte, l *Launch, r *http.Request) (datastore.Registration, int, error) {
 	token, err := jwt.Parse(rawToken)
 	if err != nil {
-		return datastore.Registration{}, http.StatusBadRequest, err
+		return datastore.Registration{}, http.StatusBadRequest, fmt.Errorf("validate registration: %w", err)
 	}
 
 	issuer := token.Issuer()
@@ -157,7 +157,7 @@ func validateRegistration(rawToken []byte, l *Launch, r *http.Request) (datastor
 		if err == datastore.ErrRegistrationNotFound {
 			return datastore.Registration{}, http.StatusBadRequest, fmt.Errorf("no registration found for iss %s", issuer)
 		} else {
-			return datastore.Registration{}, http.StatusInternalServerError, err
+			return datastore.Registration{}, http.StatusInternalServerError, fmt.Errorf("validate registration: %w", err)
 		}
 	}
 
@@ -171,13 +171,13 @@ func validateSignature(rawToken []byte, registration datastore.Registration, r *
 	if err != nil {
 		// Since the KeysetURI is part of the registration, a failure to retrieve it should be reported as an
 		// internal server error.
-		return nil, http.StatusInternalServerError, err
+		return nil, http.StatusInternalServerError, fmt.Errorf("validate signature: %w", err)
 	}
 
 	// Perform the signature check.
 	verifiedToken, err := jwt.Parse(rawToken, jwt.WithKeySet(keyset))
 	if err != nil {
-		return nil, http.StatusBadRequest, err
+		return nil, http.StatusBadRequest, fmt.Errorf("validate signature: %w", err)
 	}
 
 	return verifiedToken, http.StatusOK, nil
@@ -304,7 +304,7 @@ func getLaunchData(rawToken []byte) (json.RawMessage, int, error) {
 	rawTokenParts := strings.SplitN(string(rawToken), ".", 3)
 	payload, err := base64.RawURLEncoding.DecodeString(rawTokenParts[1])
 	if err != nil {
-		return nil, http.StatusBadRequest, err
+		return nil, http.StatusBadRequest, fmt.Errorf("get launch data: %w", err)
 	}
 
 	return json.RawMessage(payload), http.StatusOK, nil
