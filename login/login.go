@@ -15,15 +15,9 @@ import (
 	"github.com/macewan-cs/lti/datastore/nonpersistent"
 )
 
-// Config holds the stores required for a login.
-type Config struct {
-	Registrations datastore.RegistrationStorer
-	Nonces        datastore.NonceStorer
-}
-
 // New creates a new login object. If the passed Config has zero-value store interfaces, fall back on the in-memory
 // nonpersistent.DefaultStore.
-func New(cfg Config) *Login {
+func New(cfg datastore.Config) *Login {
 	login := Login{
 		cfg: cfg,
 	}
@@ -38,7 +32,7 @@ func New(cfg Config) *Login {
 }
 
 type Login struct {
-	cfg Config
+	cfg datastore.Config
 }
 
 // RedirectURI extracts the form data from the initial login request and returns a auth redirect URI and state cookie.

@@ -44,7 +44,7 @@ func getPostBody() []byte {
 
 // Test instantiation.
 func TestNew(t *testing.T) {
-	actual := New(Config{})
+	actual := New(datastore.Config{})
 	if actual == nil {
 		t.Fatal("got nil, want non-nil")
 	}
@@ -52,7 +52,7 @@ func TestNew(t *testing.T) {
 
 // Test the validate checks with appropriately malformed requests.
 func TestValidate(t *testing.T) {
-	login := New(Config{})
+	login := New(datastore.Config{})
 	login.cfg.Registrations.StoreRegistration(getRegistration())
 
 	r := httptest.NewRequest(http.MethodPost, "https://tool.tld/login", bytes.NewReader([]byte("")))
@@ -92,7 +92,7 @@ func TestValidate(t *testing.T) {
 
 // Test the RedirectURI method.
 func TestRedirectURI(t *testing.T) {
-	login := New(Config{})
+	login := New(datastore.Config{})
 	login.cfg.Registrations.StoreRegistration(getRegistration())
 
 	r := httptest.NewRequest(http.MethodPost, "https://tool.tld/login", bytes.NewReader(getPostBody()))

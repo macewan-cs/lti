@@ -21,17 +21,9 @@ import (
 	"github.com/macewan-cs/lti/datastore/nonpersistent"
 )
 
-// Config represents the configuration used in creating a new *Launch. New will accept the zero value of this struct,
-// and in the case of the zero value, the resulting Launch will use nonpersistent storage.
-type Config struct {
-	LaunchData    datastore.LaunchDataStorer
-	Registrations datastore.RegistrationStorer
-	Nonces        datastore.NonceStorer
-}
-
 // A Launch implements an external application's role in the LTI specification's launch flow.
 type Launch struct {
-	cfg  Config
+	cfg  datastore.Config
 	next http.HandlerFunc
 }
 
@@ -48,7 +40,7 @@ var (
 )
 
 // New creates a *Launch, which implements the http.Handler interface for launching a tool.
-func New(cfg Config, next http.HandlerFunc) *Launch {
+func New(cfg datastore.Config, next http.HandlerFunc) *Launch {
 	launch := Launch{
 		cfg:  cfg,
 		next: next,

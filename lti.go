@@ -15,6 +15,7 @@ import (
 	"net/http"
 
 	"github.com/macewan-cs/lti/connector"
+	"github.com/macewan-cs/lti/datastore"
 	dssql "github.com/macewan-cs/lti/datastore/sql"
 	"github.com/macewan-cs/lti/launch"
 	"github.com/macewan-cs/lti/login"
@@ -28,19 +29,19 @@ func NewSQLDatastore(db *sql.DB, config dssql.Config) *dssql.Store {
 	return dssql.New(db, config)
 }
 
-func NewLoginConfig() login.Config {
-	return login.Config{}
+func NewLoginConfig() datastore.Config {
+	return datastore.Config{}
 }
 
-func NewLogin(cfg login.Config) *login.Login {
+func NewLogin(cfg datastore.Config) *login.Login {
 	return login.New(cfg)
 }
 
-func NewLaunchConfig() launch.Config {
-	return launch.Config{}
+func NewLaunchConfig() datastore.Config {
+	return datastore.Config{}
 }
 
-func NewLaunch(cfg launch.Config, next http.HandlerFunc) *launch.Launch {
+func NewLaunch(cfg datastore.Config, next http.HandlerFunc) *launch.Launch {
 	return launch.New(cfg, next)
 }
 
@@ -61,10 +62,10 @@ func LaunchIDFromRequest(r *http.Request) string {
 	return LaunchIDFromContext(r.Context())
 }
 
-func NewConnectorConfig() connector.Config {
-	return connector.Config{}
+func NewConnectorConfig() datastore.Config {
+	return datastore.Config{}
 }
 
-func NewConnector(cfg connector.Config, launchID string) (*connector.Connector, error) {
+func NewConnector(cfg datastore.Config, launchID string) (*connector.Connector, error) {
 	return connector.New(cfg, launchID)
 }

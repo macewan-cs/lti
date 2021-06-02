@@ -40,17 +40,9 @@ const (
 // Timeout value for http clients.
 var timeout time.Duration = time.Second * 15
 
-// Config represents the configuration used in creating a new *Connector. New will accept the zero value of this struct,
-// and in the case of the zero value, the resulting Connector will use nonpersistent storage.
-type Config struct {
-	LaunchData    datastore.LaunchDataStorer
-	Registrations datastore.RegistrationStorer
-	AccessTokens  datastore.AccessTokenStorer
-}
-
 // A Connector implements the base that underpins LTI 1.3 Advantage, i.e. AGS or NRPS.
 type Connector struct {
-	cfg         Config
+	cfg         datastore.Config
 	LaunchID    string
 	LaunchToken jwt.Token
 	SigningKey  *rsa.PrivateKey
@@ -69,7 +61,7 @@ type ServiceRequest struct {
 }
 
 // New creates a *Connector. To function as expected, a valid launchID must be supplied.
-func New(cfg Config, launchID string) (*Connector, error) {
+func New(cfg datastore.Config, launchID string) (*Connector, error) {
 	connector := Connector{
 		cfg:      cfg,
 		LaunchID: launchID,

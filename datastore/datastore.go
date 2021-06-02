@@ -13,6 +13,15 @@ import (
 	"time"
 )
 
+// Config holds the stores required for LTI packages. New package functions will accept the zero value of this struct,
+// and in the case of the zero value, the resulting LTI process will use nonpersistent storage.
+type Config struct {
+	Registrations RegistrationStorer
+	Nonces        NonceStorer
+	LaunchData    LaunchDataStorer
+	AccessTokens  AccessTokenStorer
+}
+
 // A Registration is the details of a link between a Platform and a Tool. There can be multiple deployments per
 // registration. Each Registration is uniquely identifed by the ClientID.
 type Registration struct {
