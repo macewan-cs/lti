@@ -286,42 +286,42 @@ func (c *Connector) UpgradeNRPS() (*NRPS, error) {
 // UpgradeAGS provides a Connector upgraded for AGS calls.
 func (c *Connector) UpgradeAGS() (*AGS, error) {
 	// Check for endpoint.
-	agsClaim, ok := c.LaunchToken.Get("https://purl.imsglobal.org/spec/lti-ags/claim/endpoint")
+	agsRawClaims, ok := c.LaunchToken.Get("https://purl.imsglobal.org/spec/lti-ags/claim/endpoint")
 	if !ok {
 		return nil, errors.New("assignments and grades endpoint not found in launch data")
 	}
-	agsMap, ok := agsClaim.(map[string]interface{})
+	agsClaims, ok := agsRawClaims.(map[string]interface{})
 	if !ok {
 		return nil, errors.New("assignments and grades information improperly formatted")
 	}
 
-	lineItem, ok := agsMap["lineitem"]
+	rawLineItem, ok := agsClaims["lineitem"]
 	if !ok {
 		return nil, errors.New("could not get lineitem URI")
 	}
-	lineItemString, ok := lineItem.(string)
+	lineItemString, ok := rawLineItem.(string)
 	if !ok {
 		return nil, errors.New("could not assert lineitem URI")
 	}
-	lineItemURI, err := url.Parse(lineItemString)
+	lineItem, err := url.Parse(lineItemString)
 	if err != nil {
 		return nil, errors.New("could not parse lineitem URI")
 	}
 
-	lineItems, ok := agsMap["lineitems"]
+	rawLineItems, ok := agsClaims["lineitems"]
 	if !ok {
 		return nil, errors.New("could not get lineitems URI")
 	}
-	lineItemsString, ok := lineItems.(string)
+	lineItemsString, ok := rawLineItems.(string)
 	if !ok {
 		return nil, errors.New("could not assert lineitems URI")
 	}
-	lineItemsURI, err := url.Parse(lineItemsString)
+	lineItems, err := url.Parse(lineItemsString)
 	if err != nil {
 		return nil, errors.New("could not parse lineitems URI")
 	}
 
-	scope, ok := agsMap["scope"]
+	scope, ok := agsClaims["scope"]
 	if !ok {
 		return nil, errors.New("could not get AGS scopes")
 	}
@@ -339,8 +339,8 @@ func (c *Connector) UpgradeAGS() (*AGS, error) {
 	}
 
 	return &AGS{
-		LineItem:  lineItemURI,
-		LineItems: lineItemsURI,
+		LineItem:  lineItem,
+		LineItems: lineItems,
 		Scopes:    scopes,
 		Target:    c,
 	}, nil
