@@ -29,16 +29,12 @@ func NewSQLDatastore(db *sql.DB, config dssql.Config) *dssql.Store {
 	return dssql.New(db, config)
 }
 
-func NewLoginConfig() datastore.Config {
+func NewDatastoreConfig() datastore.Config {
 	return datastore.Config{}
 }
 
 func NewLogin(cfg datastore.Config) *login.Login {
 	return login.New(cfg)
-}
-
-func NewLaunchConfig() datastore.Config {
-	return datastore.Config{}
 }
 
 func NewLaunch(cfg datastore.Config, next http.HandlerFunc) *launch.Launch {
@@ -60,10 +56,6 @@ func LaunchIDFromContext(ctx context.Context) string {
 
 func LaunchIDFromRequest(r *http.Request) string {
 	return LaunchIDFromContext(r.Context())
-}
-
-func NewConnectorConfig() datastore.Config {
-	return datastore.Config{}
 }
 
 func NewConnector(cfg datastore.Config, launchID string) (*connector.Connector, error) {
