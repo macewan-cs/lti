@@ -4,5 +4,6 @@ go 1.16
 
 require (
 	github.com/google/uuid v1.2.0
-	github.com/lestrrat-go/jwx v1.2.0
+	github.com/lestrrat-go/jwx v1.2.1
+	github.com/mlhoyt/ramsql v0.0.22
 )

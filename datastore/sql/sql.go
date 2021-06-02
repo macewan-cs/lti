@@ -106,10 +106,15 @@ func (s *Store) StoreRegistration(reg datastore.Registration) error {
 		return err
 	}
 
+	authTokenURI := reg.AuthTokenURI.String()
+	authLoginURI := reg.AuthLoginURI.String()
+	keysetURI := reg.KeysetURI.String()
+	targetLinkURI := reg.TargetLinkURI.String()
+
 	q := `INSERT INTO ` + s.registration.table + ` (` + s.registration.fields + `)
                    VALUES ($1, $2, $3, $4, $5, $6)`
-	result, err := tx.Exec(q, reg.Issuer, reg.ClientID, reg.AuthTokenURI, reg.AuthLoginURI,
-		reg.KeysetURI, reg.TargetLinkURI)
+	result, err := tx.Exec(q, reg.Issuer, reg.ClientID, authTokenURI, authLoginURI,
+		keysetURI, targetLinkURI)
 	if err != nil {
 		tx.Rollback()
 		return err
