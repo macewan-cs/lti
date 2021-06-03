@@ -73,6 +73,62 @@ type Result struct {
 // 	ResourceLinkID string
 // }
 
+// UpgradeAGS provides a Connector upgraded for AGS calls.
+func (c *Connector) UpgradeAGS() (*AGS, error) {
+	// Check for endpoint.
+	agsRawClaims, ok := c.LaunchToken.Get("https://purl.imsglobal.org/spec/lti-ags/claim/endpoint")
+	if !ok {
+		return nil, errors.New("assignments and grades endpoint not found in launch data")
+	}
+	agsClaims, ok := agsRawClaims.(map[string]interface{})
+	if !ok {
+		return nil, errors.New("assignments and grades information improperly formatted")
+	}
+
+	rawLineItem, ok := agsClaims["lineitem"]
+	if !ok {
+		return nil, errors.New("could not get lineitem URI")
+	}
+	lineItemString, ok := rawLineItem.(string)
+	if !ok {
+		return nil, errors.New("could not assert lineitem URI")
+	}
+	lineItem, err := url.Parse(lineItemString)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse lineitem URI: %w", err)
+	}
+
+	rawLineItems, ok := agsClaims["lineitems"]
+	if !ok {
+		return nil, errors.New("could not get lineitems URI")
+	}
+	lineItemsString, ok := rawLineItems.(string)
+	if !ok {
+		return nil, errors.New("could not assert lineitems URI")
+	}
+	lineItems, err := url.Parse(lineItemsString)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse lineitems URI: %w", err)
+	}
+
+	scope, ok := agsClaims["scope"]
+	if !ok {
+		return nil, errors.New("could not get AGS scopes")
+	}
+	scopeInterfaces, ok := scope.([]interface{})
+	if !ok {
+		return nil, errors.New("could not assert AGS scopes")
+	}
+	scopes := convertInterfaceToStringSlice(scopeInterfaces)
+
+	return &AGS{
+		LineItem:  lineItem,
+		LineItems: lineItems,
+		Scopes:    scopes,
+		Target:    c,
+	}, nil
+}
+
 // PutScore posts a grade (LTI spec uses term 'score') for the launched resource to the platform's gradebook.
 func (a *AGS) PutScore(s Score) error {
 	scopes := []string{"https://purl.imsglobal.org/spec/lti-ags/scope/score"}

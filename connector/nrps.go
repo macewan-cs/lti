@@ -51,6 +51,32 @@ type Member struct {
 	Roles              []string
 }
 
+// UpgradeNRPS provides a Connector upgraded for NRPS calls.
+func (c *Connector) UpgradeNRPS() (*NRPS, error) {
+	// Check for endpoint.
+	nrpsRawClaim, ok := c.LaunchToken.Get("https://purl.imsglobal.org/spec/lti-nrps/claim/namesroleservice")
+	if !ok {
+		return nil, errors.New("names and roles endpoint not found in launch data")
+	}
+	nrpsClaim, ok := nrpsRawClaim.(map[string]interface{})
+	if !ok {
+		return nil, errors.New("names and roles information improperly formatted")
+	}
+	nrpsString, ok := nrpsClaim["context_memberships_url"]
+	if !ok {
+		return nil, errors.New("names and roles endpoint not found")
+	}
+	nrps, err := url.Parse(nrpsString.(string))
+	if err != nil {
+		return nil, fmt.Errorf("names and roles endpoint parse error: %w", err)
+	}
+
+	return &NRPS{
+		Endpoint: nrps,
+		Target:   c,
+	}, nil
+}
+
 // GetMembership gets a course (typically referred to as a Context in LTI) membership from the platform.
 func (n *NRPS) GetMembership() (Membership, error) {
 	scopes := []string{"https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"}
