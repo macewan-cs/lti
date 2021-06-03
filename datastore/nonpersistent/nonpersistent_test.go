@@ -207,69 +207,48 @@ func TestFindAccessToken(t *testing.T) {
 		ClientID:   "abcdef123456",
 		Scopes:     []string{"https://scope/1.readonly", "https://scope/2.delete"},
 		Token:      "123456789abcdef",
-		ExpiryTime: time.Now().Add(-time.Minute * 30),
+		ExpiryTime: time.Now().Add(-time.Hour * 1).Round(0),
 	}
 	npStore := New()
 
-	testToken.TokenURI = ""
-	_, err := npStore.FindAccessToken(testToken)
+	_, err := npStore.FindAccessToken("", testToken.ClientID, testToken.Scopes)
 	if err.Error() != "received empty tokenURI" {
 		t.Error("error not reported for empty tokenURI")
 	}
-	testToken.TokenURI = "https://domain.tld/token"
 
-	testToken.ClientID = ""
-	_, err = npStore.FindAccessToken(testToken)
+	_, err = npStore.FindAccessToken(testToken.TokenURI, "", testToken.Scopes)
 	if err.Error() != "received empty clientID" {
 		t.Error("error not reported for empty clientID")
 	}
-	testToken.ClientID = "abcdef123456"
 
-	testToken.Scopes = []string{}
-	_, err = npStore.FindAccessToken(testToken)
+	_, err = npStore.FindAccessToken(testToken.TokenURI, testToken.ClientID, []string{})
 	if err.Error() != "received empty scopes" {
 		t.Error("error not reported for empty scopes")
 	}
-	testToken.Scopes = []string{"https://scope/1.readonly", "https://scope/2.delete"}
 
-	testToken.Token = ""
-	_, err = npStore.FindAccessToken(testToken)
-	if err.Error() != "received empty accessToken" {
-		t.Error("error not reported for empty token string")
-	}
-	testToken.Token = "123456789abcdef"
-
-	testToken.ExpiryTime = time.Time{}
-	_, err = npStore.FindAccessToken(testToken)
-	if err.Error() != "received empty expiry time" {
-		t.Error("error not reported for empty expiry time")
-	}
-	testToken.ExpiryTime = time.Now().Add(-time.Minute * 30)
-
-	testToken.ClientID = "nonexistent"
-	_, err = npStore.FindAccessToken(testToken)
-	if err.Error() != "no access token found" {
+	_, err = npStore.FindAccessToken(testToken.TokenURI, testToken.ClientID, testToken.Scopes)
+	if err != datastore.ErrAccessTokenNotFound || err == nil {
 		t.Error("error not reported for no token found")
 	}
-	testToken.ClientID = "abcdef123456"
 
 	err = npStore.StoreAccessToken(testToken)
 	if err != nil {
 		t.Fatal("could not store token for find test")
 	}
-	_, err = npStore.FindAccessToken(testToken)
+
+	_, err = npStore.FindAccessToken(testToken.TokenURI, testToken.ClientID, testToken.Scopes)
 	if err.Error() != "access token has expired" {
 		t.Fatal("error not reported for expired token")
 	}
 
-	testToken.ExpiryTime = time.Now().Add(time.Minute * 30).Round(0)
+	testToken.ExpiryTime = time.Now().Add(time.Hour * 1).Round(0)
 	err = npStore.StoreAccessToken(testToken)
 	if err != nil {
 		t.Fatal("could not store token for find test")
 	}
-	actual, err := npStore.FindAccessToken(testToken)
+	actual, err := npStore.FindAccessToken(testToken.TokenURI, testToken.ClientID, testToken.Scopes)
 	if err != nil {
-		t.Fatal("unexpected error reported")
+		t.Fatalf("unexpected error reported: %v", err)
 	}
 	equal := reflect.DeepEqual(testToken, actual)
 	if !equal {

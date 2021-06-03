@@ -249,13 +249,7 @@ func convertInterfaceToStringSlice(input []interface{}) []string {
 
 // checkAccessTokenStore looks for a suitable, non-expired access token in storage.
 func (c *Connector) checkAccessTokenStore(tokenURI, clientID string, scopes []string) (datastore.AccessToken, error) {
-	searchToken := datastore.AccessToken{
-		TokenURI: tokenURI,
-		ClientID: clientID,
-		Scopes:   scopes,
-	}
-
-	foundToken, err := c.cfg.AccessTokens.FindAccessToken(searchToken)
+	foundToken, err := c.cfg.AccessTokens.FindAccessToken(tokenURI, clientID, scopes)
 	if err != nil {
 		return datastore.AccessToken{}, fmt.Errorf("suitable access token not found: %w", err)
 	}

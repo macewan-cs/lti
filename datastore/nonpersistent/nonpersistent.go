@@ -197,28 +197,21 @@ func (s *Store) StoreAccessToken(token datastore.AccessToken) error {
 }
 
 // FindAccessToken retrieves bearer tokens for potential reuse.
-func (s *Store) FindAccessToken(token datastore.AccessToken) (datastore.AccessToken, error) {
-	if token.TokenURI == "" {
+func (s *Store) FindAccessToken(tokenURI, clientID string, scopes []string) (datastore.AccessToken, error) {
+	if tokenURI == "" {
 		return datastore.AccessToken{}, errors.New("received empty tokenURI")
 	}
-	if token.ClientID == "" {
+	if clientID == "" {
 		return datastore.AccessToken{}, errors.New("received empty clientID")
 	}
-	if len(token.Scopes) == 0 {
+	if len(scopes) == 0 {
 		return datastore.AccessToken{}, errors.New("received empty scopes")
 	}
-	if token.Token == "" {
-		return datastore.AccessToken{}, errors.New("received empty accessToken")
-	}
-	zeroTime := time.Time{}
-	if token.ExpiryTime == zeroTime {
-		return datastore.AccessToken{}, errors.New("received empty expiry time")
-	}
 
-	index := accessTokenIndex(token.TokenURI, token.ClientID, token.Scopes)
+	index := accessTokenIndex(tokenURI, clientID, scopes)
 	storeValue, ok := s.AccessTokens.Load(index)
 	if !ok {
-		return datastore.AccessToken{}, errors.New("no access token found")
+		return datastore.AccessToken{}, datastore.ErrAccessTokenNotFound
 	}
 	storeBytes, ok := storeValue.([]byte)
 	if !ok {

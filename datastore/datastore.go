@@ -125,6 +125,7 @@ type LaunchDataStorer interface {
 
 // ErrAccessTokenNotFound is the error returned when an access token cannot be found.
 var ErrAccessTokenNotFound = errors.New("access token not found")
+var ErrAccessTokenExpired = errors.New("access token found but has expired")
 
 // An AccessTokenStorer manages the storage and retrieval of access tokens.
 type AccessTokenStorer interface {
@@ -133,5 +134,5 @@ type AccessTokenStorer interface {
 
 	// FindAccessToken retrieves a previously-stored access token. If the access token cannot be found, it returns
 	// ErrAccessTokenNotFound.
-	FindAccessToken(token AccessToken) (AccessToken, error)
+	FindAccessToken(tokenURI, clientID string, scopes []string) (AccessToken, error)
 }
