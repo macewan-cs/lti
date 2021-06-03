@@ -320,7 +320,7 @@ func sendRequest(req *http.Request) (datastore.AccessToken, error) {
 	var responseBody map[string]interface{}
 	err = json.NewDecoder(response.Body).Decode(&responseBody)
 	if err != nil {
-		return datastore.AccessToken{}, fmt.Errorf("could not decode access token reponse body: %w", err)
+		return datastore.AccessToken{}, fmt.Errorf("could not decode access token response body: %w", err)
 	}
 
 	responseToken, ok := responseBody["access_token"].(string)

@@ -54,7 +54,7 @@ func (l *Login) RedirectURI(r *http.Request) (string, http.Cookie, error) {
 	if err != nil {
 		return "", http.Cookie{}, err
 	}
-	// Build auth reponse to initial login request.
+	// Build auth response to initial login request.
 	values := url.Values{}
 	values.Set("scope", "openid")
 	values.Set("response_type", "id_token")

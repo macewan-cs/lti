@@ -23,7 +23,7 @@ type Config struct {
 }
 
 // A Registration is the details of a link between a Platform and a Tool. There can be multiple deployments per
-// registration. Each Registration is uniquely identifed by the ClientID.
+// registration. Each Registration is uniquely identified by the ClientID.
 type Registration struct {
 	Issuer        string
 	ClientID      string

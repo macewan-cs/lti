@@ -27,7 +27,7 @@ const (
 	ActivityInitialized = "Initialized"
 	ActivityStarted     = "Started"
 	ActivityInProgress  = "InProgress"
-	ActvitySubmitted    = "Submitted"
+	ActivitySubmitted   = "Submitted"
 	ActivityCompleted   = "Completed"
 
 	// AGS gradingProgress constants.
@@ -146,7 +146,7 @@ func (a *AGS) GetResults() ([]Result, error) {
 	var results []Result
 	err = json.NewDecoder(body).Decode(&results)
 	if err != nil {
-		return []Result{}, fmt.Errorf("could not decode get result reponse body: %w", err)
+		return []Result{}, fmt.Errorf("could not decode get result response body: %w", err)
 	}
 	// if result.ScoreOf.Path != a.LineItem.Path {
 	// 	return Result{}, errors.New("result score of field did not match lineitem")

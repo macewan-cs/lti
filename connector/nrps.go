@@ -70,7 +70,7 @@ func (n *NRPS) GetMembership() (Membership, error) {
 	var membership Membership
 	err = json.NewDecoder(body).Decode(&membership)
 	if err != nil {
-		return Membership{}, fmt.Errorf("could not decode get membership reponse body: %w", err)
+		return Membership{}, fmt.Errorf("could not decode get membership response body: %w", err)
 	}
 
 	return membership, nil
@@ -116,7 +116,7 @@ func (n *NRPS) GetPagedMembership(limit int) (Membership, bool, error) {
 	var membership Membership
 	err = json.NewDecoder(body).Decode(&membership)
 	if err != nil {
-		return Membership{}, false, fmt.Errorf("could not decode get paged membership reponse body: %w", err)
+		return Membership{}, false, fmt.Errorf("could not decode get paged membership response body: %w", err)
 	}
 
 	// Get the next page link from the response headers.

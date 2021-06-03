@@ -59,7 +59,7 @@ func New(cfg datastore.Config, next http.HandlerFunc) *Launch {
 	return &launch
 }
 
-// ServeHTTP perfoms validations according the OIDC launch flow modified for use by the IMS Global LTI v1p3
+// ServeHTTP performs validations according the OIDC launch flow modified for use by the IMS Global LTI v1p3
 // specifications. State is found in a user agent cookie and the POST body. Nonce is found embedded in the id_token and
 // in a datastore.
 func (l *Launch) ServeHTTP(w http.ResponseWriter, r *http.Request) {
