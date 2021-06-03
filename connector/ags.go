@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
+	"strings"
 )
 
 // AGS implements Assignment & Grades Services functions.
@@ -19,6 +21,7 @@ type AGS struct {
 	LineItem  *url.URL
 	LineItems *url.URL
 	Scopes    []string
+	NextPage  *url.URL
 	Target    *Connector
 }
 
@@ -66,7 +69,7 @@ type Result struct {
 // 	ID             string
 // 	StartDateTime  string
 // 	EndDateTime    string
-// 	ScoreMaximum   float32
+// 	ScoreMaximum   float64
 // 	Label          string
 // 	Tag            string
 // 	ResourceID     string
@@ -174,44 +177,94 @@ func (a *AGS) PutScore(s Score) error {
 	return nil
 }
 
-// GetResults fetches the platform-assigned grades for a lineitem.
+// GetResults gets the launched limeitem's Results for all users enrolled in that lineitem's context (i.e. course).
+// Using GetPagedMemberships as a helper, it checks for next page links, fetching and appending them to the output.
 func (a *AGS) GetResults() ([]Result, error) {
+	var (
+		limit       int
+		hasMore     bool
+		results     []Result
+		moreResults []Result
+		err         error
+	)
+
+	results, hasMore, err = a.GetPagedResults(limit)
+	if err != nil {
+		return []Result{}, fmt.Errorf("get paged membership error: %w", err)
+	}
+
+	for hasMore {
+		moreResults, hasMore, err = a.GetPagedResults(limit)
+		if err != nil {
+			return []Result{}, fmt.Errorf("get more membership error: %w", err)
+		}
+		results = append(results, moreResults...)
+	}
+
+	return results, nil
+}
+
+// GetPagedResults fetches the platform-assigned grades for a lineitem. Note: Platforms are not required to support a
+// Results service 'limit' parameter, see: https://www.imsglobal.org/spec/lti-ags/v2p0/#container-request-filters-0
+func (a *AGS) GetPagedResults(limit int) ([]Result, bool, error) {
+	if limit < 0 {
+		return []Result{}, false, errors.New("invalid paging limit")
+	}
 	scopes := []string{"https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly"}
 
-	// Make a copy of the lineitem and add the /scores path.
+	query, err := url.ParseQuery(a.LineItem.RawQuery)
+	if err != nil {
+		return []Result{}, false, fmt.Errorf("could not parse lineitem query values: %w", err)
+	}
+	if limit != 0 {
+		query.Add("limit", strconv.Itoa(limit))
+	}
+
+	// Make a copy of the lineitem and add the /results path.
 	resultURI, err := url.Parse(a.LineItem.String())
 	if err != nil {
-		return []Result{}, fmt.Errorf("could not parse score URI: %w", err)
+		return []Result{}, false, fmt.Errorf("could not parse score URI: %w", err)
 	}
 	resultURI.Path += "/results"
-	query := a.LineItem.Query()
 	resultURI.RawQuery = query.Encode()
-
-	fmt.Println(resultURI.String())
-
-	_, body, err := a.Target.makeServiceRequest(ServiceRequest{
+	s := ServiceRequest{
 		Scopes:         scopes,
 		Method:         http.MethodGet,
 		URI:            resultURI,
 		Accept:         "application/vnd.ims.lis.v2.resultcontainer+json",
 		ExpectedStatus: http.StatusOK,
-	})
+	}
+
+	// If there was a next page set from a previous response, use it.
+	if a.NextPage != nil {
+		s.URI = a.NextPage
+	}
+	headers, body, err := a.Target.makeServiceRequest(s)
 	if err != nil {
-		return []Result{}, fmt.Errorf("get results make service request error: %w", err)
+		return []Result{}, false, fmt.Errorf("get results make service request error: %w", err)
 	}
 
 	defer body.Close()
 	var results []Result
 	err = json.NewDecoder(body).Decode(&results)
 	if err != nil {
-		return []Result{}, fmt.Errorf("could not decode get result response body: %w", err)
+		return []Result{}, false, fmt.Errorf("could not decode get result response body: %w", err)
 	}
-	// if result.ScoreOf.Path != a.LineItem.Path {
-	// 	return Result{}, errors.New("result score of field did not match lineitem")
-	// }
-	// if result.ResultMaximum <= 0 {
-	// 	return Result{}, errors.New("invalid result maximum received")
-	// }
 
-	return results, nil
+	// Get the next page link from the response headers.
+	nextPageLink := headers.Get("link")
+	if nextPageLink == "" || !strings.Contains(nextPageLink, `rel="next"`) {
+		// If there are no further next page links, set the AGS NextPage field to nil.
+		a.NextPage = nil
+		return results, false, nil
+	}
+
+	nextPageString := strings.Trim(nextPageLink, "<>")
+	nextPage, err := url.Parse(nextPageString)
+	if err != nil {
+		return []Result{}, false, fmt.Errorf("could not parse next page URI from response headers: %w", err)
+	}
+	a.NextPage = nextPage
+
+	return results, true, nil
 }
