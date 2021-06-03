@@ -63,37 +63,72 @@ func ValidateDeploymentID(deploymentID string) error {
 }
 
 var (
+	// ErrRegistrationNotFound is the error returned when a registration cannot be found.
 	ErrRegistrationNotFound = errors.New("registration not found")
-	ErrDeploymentNotFound   = errors.New("deployment not found")
+
+	// ErrDeploymentNotFound is the error returned when an issuer/deploymentID cannot be found.
+	ErrDeploymentNotFound = errors.New("deployment not found")
 )
 
+// A RegistrationStorer manages the storage and retrieval of LTI registrations & deployments.
 type RegistrationStorer interface {
+	// StoreRegistration stores a registration for later retrieval.
 	StoreRegistration(Registration) error
-	StoreDeployment(issuer string, deploymentID string) error
+
+	// FindRegistrationByIssuer retrieves a previously-stored registration using the `issuer' field. If the
+	// registration cannot be found, it returns ErrRegistrationNotFound.
 	FindRegistrationByIssuer(issuer string) (Registration, error)
+
+	// StoreDeployment stores a deployment for later retrieval.
+	StoreDeployment(issuer string, deploymentID string) error
+
+	// FindDeployment retrieves a previously-stored deployment using the `issuer' and `deploymentID'. Its primary
+	// purpose is to validate the supplied deployment ID. If the deployment cannot be found, it returns
+	// ErrDeploymentNotFound.
 	FindDeployment(issuer string, deploymentID string) (Deployment, error)
 }
 
 var (
-	ErrNonceNotFound              = errors.New("nonce not found")
+	// ErrNonceNotFound is the error returned when a nonce cannot be found.
+	ErrNonceNotFound = errors.New("nonce not found")
+
+	// ErrNonceTargetLinkURIMismatch is the error returned when a nonce is found but there's a mismatch in the
+	// target URI.
 	ErrNonceTargetLinkURIMismatch = errors.New("nonce found with mismatched target link uri")
 )
 
+// A NonceStorer manages the storage and retrieval of LTI nonces.
 type NonceStorer interface {
+	// StoreNonce stores a nonce for later retrieval.
 	StoreNonce(nonce string, targetLinkURI string) error
+
+	// TestAndClearNonce tests for the existance of a nonce. If the nonce is found and the target URI matches, it
+	// removes/clears the nonce and returns nil. Otherwise, it returns one of the ErrNonce errors.
 	TestAndClearNonce(nonce string, issuer string) error
 }
 
+// ErrLaunchDataNotFound is the error returned when cached launch data cannot be found.
 var ErrLaunchDataNotFound = errors.New("launch data not found")
 
+// A LaunchDataStorer manages the storage and retrieval of LTI launch data.
 type LaunchDataStorer interface {
+	// StoreLaunchData stores the JSON launch data associated with the supplied launch ID.
 	StoreLaunchData(launchID string, launchData json.RawMessage) error
+
+	// FindLaunchData retrieves previously-stored launch data using the `launchID'. If the launch data cannot be
+	// found, it returns ErrLaunchDataNotFound.
 	FindLaunchData(launchID string) (json.RawMessage, error)
 }
 
+// ErrAccessTokenNotFound is the error returned when an access token cannot be found.
 var ErrAccessTokenNotFound = errors.New("access token not found")
 
+// An AccessTokenStorer manages the storage and retrieval of access tokens.
 type AccessTokenStorer interface {
+	// StoreAccessToken stores an access token.
 	StoreAccessToken(token AccessToken) error
+
+	// FindAccessToken retrieves a previously-stored access token. If the access token cannot be found, it returns
+	// ErrAccessTokenNotFound.
 	FindAccessToken(token AccessToken) (AccessToken, error)
 }

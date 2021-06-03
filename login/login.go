@@ -31,6 +31,7 @@ func New(cfg datastore.Config) *Login {
 	return &login
 }
 
+// A Login implements an http.Handler that can be easily associated with a tool URI such as /services/lti/login/.
 type Login struct {
 	cfg datastore.Config
 }

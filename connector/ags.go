@@ -22,15 +22,17 @@ type AGS struct {
 	Target    *Connector
 }
 
+// AGS activityProgress constants.
 const (
-	// AGS activityProgress constants.
 	ActivityInitialized = "Initialized"
 	ActivityStarted     = "Started"
 	ActivityInProgress  = "InProgress"
 	ActivitySubmitted   = "Submitted"
 	ActivityCompleted   = "Completed"
+)
 
-	// AGS gradingProgress constants.
+// AGS gradingProgress constants.
+const (
 	GradingFullyGraded   = "FullyGraded"
 	GradingPending       = "Pending"
 	GradingPendingManual = "PendingManual"

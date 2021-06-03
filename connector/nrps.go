@@ -76,7 +76,7 @@ func (n *NRPS) GetMembership() (Membership, error) {
 	return membership, nil
 }
 
-// GetPageMembership gets paged Memberships from a course, useful for processing large enrollments.
+// GetPagedMembership gets paged Memberships from a course, useful for processing large enrollments.
 func (n *NRPS) GetPagedMembership(limit int) (Membership, bool, error) {
 	if limit < 1 {
 		return Membership{}, false, errors.New("must supply a paging limit greater than or equal to one")
@@ -125,15 +125,15 @@ func (n *NRPS) GetPagedMembership(limit int) (Membership, bool, error) {
 		// If there are no further next page links, set the NRPS NextPage field to nil.
 		n.NextPage = nil
 		return membership, false, nil
-	} else {
-		nextPageString := strings.Trim(nextPageLink, "<>")
-		nextPage, err := url.Parse(nextPageString)
-		if err != nil {
-			return Membership{}, false, fmt.Errorf("could not parse next page URI from response headers: %w", err)
-		}
-		n.NextPage = nextPage
-		return membership, true, nil
 	}
+
+	nextPageString := strings.Trim(nextPageLink, "<>")
+	nextPage, err := url.Parse(nextPageString)
+	if err != nil {
+		return Membership{}, false, fmt.Errorf("could not parse next page URI from response headers: %w", err)
+	}
+	n.NextPage = nextPage
+	return membership, true, nil
 }
 
 // GetLaunchingMember returns a Member struct representing the user that performed the launch. Notable omissions

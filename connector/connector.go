@@ -3,8 +3,9 @@
 // This source code is licensed under the MIT-style license found in
 // the LICENSE file in the root directory of this source tree.
 
-// Connector provides LTI Advantage services built upon a successful Launch. The package provides for a "base" Connector
-// that can be upgraded to provide either or both Assignment & Grades Services and Names & Roles Provisioning Services.
+// Package connector provides LTI Advantage services built upon a successful Launch. The package provides for a "base"
+// Connector that can be upgraded to provide either or both Assignment & Grades Services and Names & Roles Provisioning
+// Services.
 package connector
 
 import (
@@ -31,9 +32,9 @@ import (
 )
 
 const (
-	// Access Token request JWT Expiration validity period in seconds.
+	// AccessTokenTimeoutSeconds determines the JWT Expiration validity period in seconds.
 	AccessTokenTimeoutSeconds = 3600
-	// Access Token request JWT IssuedAt clock skew allowance in minutes.
+	// ClockSkewAllowanceMinutes determines the JWT IssuedAt clock skew allowance in minutes.
 	ClockSkewAllowanceMinutes = 2
 )
 
@@ -108,7 +109,7 @@ func (c *Connector) SetSigningKey(pemPrivateKey string) error {
 
 // setTokenFromLaunchData populates the Connector's token with stored launch data that is derived from the OIDC id_token
 // payload. That id_token had its authenticity previously verified as part of the launch process.
-func (c *Connector) setLaunchTokenFromLaunchData(launchId string) error {
+func (c *Connector) setLaunchTokenFromLaunchData(launchID string) error {
 	if c.LaunchID == "" {
 		return errors.New("received empty launch ID")
 	}

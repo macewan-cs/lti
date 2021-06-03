@@ -16,6 +16,7 @@ import (
 	"github.com/macewan-cs/lti/datastore"
 )
 
+// RegistrationFields provides the database column names for fields in the datastore.Registration structure.
 type RegistrationFields struct {
 	Issuer        string
 	ClientID      string
@@ -25,11 +26,14 @@ type RegistrationFields struct {
 	TargetLinkURI string
 }
 
+// DeploymentFields provides the database column names for fields in the datastore.Deployment structure.
 type DeploymentFields struct {
 	Issuer       string
 	DeploymentID string
 }
 
+// Config represents the table and field names necessary for storing/retrieving registrations and deployments within the
+// database.
 type Config struct {
 	RegistrationTable  string
 	RegistrationFields RegistrationFields
@@ -49,6 +53,7 @@ type deploymentIdentifiers struct {
 	deploymentID string
 }
 
+// Store implements a persistent SQL-based datastore.
 type Store struct {
 	*sql.DB
 
@@ -56,6 +61,7 @@ type Store struct {
 	deployment   deploymentIdentifiers
 }
 
+// NewConfig returns a new configuration struct with default table and field names for the SQL database.
 func NewConfig() Config {
 	return Config{
 		RegistrationTable: "registration",
@@ -75,6 +81,7 @@ func NewConfig() Config {
 	}
 }
 
+// New returns a Store that satisifes the datastore.RegistrationStorer and datastore.DeploymentStorer interfaces.
 func New(database *sql.DB, config Config) *Store {
 	return &Store{
 		DB: database,
@@ -100,6 +107,7 @@ func New(database *sql.DB, config Config) *Store {
 	}
 }
 
+// StoreRegistration stores a registration in the SQL database.
 func (s *Store) StoreRegistration(reg datastore.Registration) error {
 	tx, err := s.DB.Begin()
 	if err != nil {
@@ -139,6 +147,7 @@ func (s *Store) StoreRegistration(reg datastore.Registration) error {
 	return nil
 }
 
+// FindRegistrationByIssuer retrieves a registration from the SQL database.
 func (s *Store) FindRegistrationByIssuer(issuer string) (datastore.Registration, error) {
 	if issuer == "" {
 		return datastore.Registration{}, errors.New("received empty issuer argument")
@@ -180,6 +189,7 @@ func (s *Store) FindRegistrationByIssuer(issuer string) (datastore.Registration,
 	return reg, nil
 }
 
+// StoreDeployment stores a deployment in the SQL database.
 func (s *Store) StoreDeployment(issuer, deploymentID string) error {
 	if issuer == "" {
 		return errors.New("received empty issuer argument")

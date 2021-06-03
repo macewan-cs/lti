@@ -27,11 +27,11 @@ type Launch struct {
 	next http.HandlerFunc
 }
 
-// LaunchContextKey is used as the key to store the launch ID in the request context.
-type LaunchContextKeyType string
+// ContextKeyType is used as the key to store the launch ID in the request context.
+type ContextKeyType string
 
-// This is the actual value used for the context key.
-const LaunchContextKey = LaunchContextKeyType("LaunchID")
+// ContextKey is the actual value used for the context key.
+const ContextKey = ContextKeyType("LaunchID")
 
 var (
 	maximumResourceLinkIDLength = 255
@@ -156,9 +156,9 @@ func validateRegistration(rawToken []byte, l *Launch, r *http.Request) (datastor
 	if err != nil {
 		if err == datastore.ErrRegistrationNotFound {
 			return datastore.Registration{}, http.StatusBadRequest, fmt.Errorf("no registration found for iss %s", issuer)
-		} else {
-			return datastore.Registration{}, http.StatusInternalServerError, fmt.Errorf("validate registration: %w", err)
 		}
+
+		return datastore.Registration{}, http.StatusInternalServerError, fmt.Errorf("validate registration: %w", err)
 	}
 
 	return registration, http.StatusOK, nil
@@ -224,9 +224,9 @@ func validateNonceAndTargetLinkURI(verifiedToken jwt.Token, l *Launch) (int, err
 	if err != nil {
 		if err == datastore.ErrNonceNotFound || err == datastore.ErrNonceTargetLinkURIMismatch {
 			return http.StatusBadRequest, err
-		} else {
-			return http.StatusInternalServerError, err
 		}
+
+		return http.StatusInternalServerError, err
 	}
 
 	return http.StatusOK, nil
@@ -243,9 +243,9 @@ func validateDeploymentID(verifiedToken jwt.Token, l *Launch) (int, error) {
 	if err != nil {
 		if err == datastore.ErrDeploymentNotFound {
 			return http.StatusBadRequest, err
-		} else {
-			return http.StatusInternalServerError, err
 		}
+
+		return http.StatusInternalServerError, err
 	}
 
 	return http.StatusOK, nil
@@ -323,7 +323,7 @@ func contains(n string, s []string) bool {
 
 // contextWithLaunchID puts the launch ID into the given context.
 func contextWithLaunchID(ctx context.Context, launchID string) context.Context {
-	key := LaunchContextKey
+	key := ContextKey
 
 	return context.WithValue(ctx, key, launchID)
 }

@@ -197,7 +197,7 @@ func (s *Store) StoreAccessToken(token datastore.AccessToken) error {
 	return nil
 }
 
-// StoreAccessToken retrieves bearer tokens for potential reuse.
+// FindAccessToken retrieves bearer tokens for potential reuse.
 func (s *Store) FindAccessToken(token datastore.AccessToken) (datastore.AccessToken, error) {
 	if token.TokenURI == "" {
 		return datastore.AccessToken{}, errors.New("received empty tokenURI")
