@@ -178,8 +178,20 @@ func (a *AGS) PutScore(s Score) error {
 }
 
 // GetResults gets the launched limeitem's Results for all users enrolled in that lineitem's context (i.e. course).
-// Using GetPagedMemberships as a helper, it checks for next page links, fetching and appending them to the output.
 func (a *AGS) GetResults() ([]Result, error) {
+	return a.resultsGetter("")
+}
+
+// GetUserResults is the same as GetResults with the addition of a user ID to filter the Results service responses.
+func (a *AGS) GetUserResults(userID string) ([]Result, error) {
+	if userID == "" {
+		return []Result{}, errors.New("received empty userID")
+	}
+	return a.resultsGetter(userID)
+}
+
+// resultsGetter gets Results service responses, using GetPagedMemberships as a helper.
+func (a *AGS) resultsGetter(userID string) ([]Result, error) {
 	var (
 		limit       int
 		hasMore     bool
@@ -188,13 +200,13 @@ func (a *AGS) GetResults() ([]Result, error) {
 		err         error
 	)
 
-	results, hasMore, err = a.GetPagedResults(limit)
+	results, hasMore, err = a.GetPagedResults(limit, userID)
 	if err != nil {
 		return []Result{}, fmt.Errorf("get paged membership error: %w", err)
 	}
 
 	for hasMore {
-		moreResults, hasMore, err = a.GetPagedResults(limit)
+		moreResults, hasMore, err = a.GetPagedResults(limit, userID)
 		if err != nil {
 			return []Result{}, fmt.Errorf("get more membership error: %w", err)
 		}
@@ -206,7 +218,8 @@ func (a *AGS) GetResults() ([]Result, error) {
 
 // GetPagedResults fetches the platform-assigned grades for a lineitem. Note: Platforms are not required to support a
 // Results service 'limit' parameter, see: https://www.imsglobal.org/spec/lti-ags/v2p0/#container-request-filters-0
-func (a *AGS) GetPagedResults(limit int) ([]Result, bool, error) {
+// It checks for next page links, fetching and appending them to the output.
+func (a *AGS) GetPagedResults(limit int, userID string) ([]Result, bool, error) {
 	if limit < 0 {
 		return []Result{}, false, errors.New("invalid paging limit")
 	}
@@ -218,6 +231,9 @@ func (a *AGS) GetPagedResults(limit int) ([]Result, bool, error) {
 	}
 	if limit != 0 {
 		query.Add("limit", strconv.Itoa(limit))
+	}
+	if userID != "" {
+		query.Add("user_id", userID)
 	}
 
 	// Make a copy of the lineitem and add the /results path.
