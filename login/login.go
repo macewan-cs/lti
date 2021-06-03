@@ -3,6 +3,7 @@
 // This source code is licensed under the MIT-style license found in
 // the LICENSE file in the root directory of this source tree.
 
+// Package login provides functions and methods for LTI's modified OpenID Connect login flow.
 package login
 
 import (
