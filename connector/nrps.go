@@ -77,35 +77,37 @@ func (c *Connector) UpgradeNRPS() (*NRPS, error) {
 	}, nil
 }
 
-// GetMembership gets a course (typically referred to as a Context in LTI) membership from the platform.
+// GetMembership gets the launched course (referred to as a Context in LTI) membership from the platform. Using
+// GetPagedMemberships as a helper, it checks for next page links, fetching and appending them to the output.
 func (n *NRPS) GetMembership() (Membership, error) {
-	scopes := []string{"https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"}
+	var (
+		limit          int
+		hasMore        bool
+		membership     Membership
+		moreMembership Membership
+		err            error
+	)
 
-	_, body, err := n.Target.makeServiceRequest(ServiceRequest{
-		Scopes:         scopes,
-		Method:         http.MethodGet,
-		URI:            n.Endpoint,
-		Accept:         "application/vnd.ims.lti-nrps.v2.membershipcontainer+json",
-		ExpectedStatus: http.StatusOK,
-	})
+	membership, hasMore, err = n.GetPagedMembership(limit)
 	if err != nil {
-		return Membership{}, fmt.Errorf("get membership make service request error: %w", err)
+		return Membership{}, fmt.Errorf("get paged membership error: %w", err)
 	}
 
-	defer body.Close()
-	var membership Membership
-	err = json.NewDecoder(body).Decode(&membership)
-	if err != nil {
-		return Membership{}, fmt.Errorf("could not decode get membership response body: %w", err)
+	for hasMore {
+		moreMembership, hasMore, err = n.GetPagedMembership(limit)
+		if err != nil {
+			return Membership{}, fmt.Errorf("get more membership error: %w", err)
+		}
+		membership.Members = append(membership.Members, moreMembership.Members...)
 	}
 
 	return membership, nil
 }
 
-// GetPagedMembership gets paged Memberships from a course, useful for processing large enrollments.
+// GetPagedMembership gets paged Memberships for the launched course.
 func (n *NRPS) GetPagedMembership(limit int) (Membership, bool, error) {
-	if limit < 1 {
-		return Membership{}, false, errors.New("must supply a paging limit greater than or equal to one")
+	if limit < 0 {
+		return Membership{}, false, errors.New("invalid paging limit")
 	}
 	scopes := []string{"https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"}
 
@@ -113,7 +115,9 @@ func (n *NRPS) GetPagedMembership(limit int) (Membership, bool, error) {
 	if err != nil {
 		return Membership{}, false, fmt.Errorf("could not parse NRPS query values: %w", err)
 	}
-	query.Add("limit", strconv.Itoa(limit))
+	if limit != 0 {
+		query.Add("limit", strconv.Itoa(limit))
+	}
 
 	// Set the initial limit query parameter.
 	pagedURI, err := url.Parse(n.Endpoint.String())
@@ -159,6 +163,7 @@ func (n *NRPS) GetPagedMembership(limit int) (Membership, bool, error) {
 		return Membership{}, false, fmt.Errorf("could not parse next page URI from response headers: %w", err)
 	}
 	n.NextPage = nextPage
+
 	return membership, true, nil
 }
 
