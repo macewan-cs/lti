@@ -179,17 +179,17 @@ func TestStoreDeployment(t *testing.T) {
 
 	store := New(db, NewConfig())
 
-	err = store.StoreDeployment("a", "b")
+	err = store.StoreDeployment("a", datastore.Deployment{DeploymentID: "b"})
 	if err != nil {
 		t.Fatalf("cannot store deployment")
 	}
 
-	err = store.StoreDeployment("", "b")
+	err = store.StoreDeployment("", datastore.Deployment{DeploymentID: "b"})
 	if err == nil {
 		t.Errorf("issuer not validated")
 	}
 
-	err = store.StoreDeployment("a", "")
+	err = store.StoreDeployment("a", datastore.Deployment{DeploymentID: "b"})
 	if err == nil {
 		t.Errorf("deployment ID not validated")
 	}
@@ -210,7 +210,7 @@ func TestFindDeployment(t *testing.T) {
 
 	store := New(db, NewConfig())
 
-	err = store.StoreDeployment("a", "b")
+	err = store.StoreDeployment("a", datastore.Deployment{DeploymentID: "b"})
 	if err != nil {
 		t.Fatalf("cannot store deployment")
 	}

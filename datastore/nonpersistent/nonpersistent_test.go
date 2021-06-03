@@ -71,17 +71,17 @@ func TestStoreAndFindDeploymentByDeploymentID(t *testing.T) {
 
 	npStore := New()
 
-	err := npStore.StoreDeployment("", deploymentID)
+	err := npStore.StoreDeployment("", datastore.Deployment{DeploymentID: deploymentID})
 	if err == nil {
 		t.Error("error not reported for empty issuer")
 	}
 
-	err = npStore.StoreDeployment(issuer, "")
+	err = npStore.StoreDeployment(issuer, datastore.Deployment{DeploymentID: ""})
 	if err == nil {
 		t.Error("error not reported for empty deployment ID")
 	}
 
-	err = npStore.StoreDeployment(issuer, deploymentID)
+	err = npStore.StoreDeployment(issuer, datastore.Deployment{DeploymentID: deploymentID})
 	if err != nil {
 		t.Fatalf("store deployment error: %v", err)
 	}
@@ -90,7 +90,7 @@ func TestStoreAndFindDeploymentByDeploymentID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("find deployment error: %v", err)
 	}
-	// StoreDeployment accepts a string, not a datastore.Deployment, so the retrieved object should be deeply equal.
+
 	equal := reflect.DeepEqual(expected, actual)
 	if !equal {
 		t.Fatal("found deployment does not match stored deployment")

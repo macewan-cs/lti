@@ -81,7 +81,9 @@ type RegistrationStorer interface {
 	FindRegistrationByIssuer(issuer string) (Registration, error)
 
 	// StoreDeployment stores a deployment for later retrieval.
-	StoreDeployment(issuer string, deploymentID string) error
+
+	// Change to take a Deployment struct.
+	StoreDeployment(issuer string, deployment Deployment) error
 
 	// FindDeployment retrieves a previously-stored deployment using the `issuer' and `deploymentID'. Its primary
 	// purpose is to validate the supplied deployment ID. If the deployment cannot be found, it returns
@@ -105,7 +107,7 @@ type NonceStorer interface {
 
 	// TestAndClearNonce tests for the existance of a nonce. If the nonce is found and the target URI matches, it
 	// removes/clears the nonce and returns nil. Otherwise, it returns one of the ErrNonce errors.
-	TestAndClearNonce(nonce string, issuer string) error
+	TestAndClearNonce(nonce string, targetLinkURI string) error
 }
 
 // ErrLaunchDataNotFound is the error returned when cached launch data cannot be found.

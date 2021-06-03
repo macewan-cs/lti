@@ -190,11 +190,11 @@ func (s *Store) FindRegistrationByIssuer(issuer string) (datastore.Registration,
 }
 
 // StoreDeployment stores a deployment in the SQL database.
-func (s *Store) StoreDeployment(issuer, deploymentID string) error {
+func (s *Store) StoreDeployment(issuer string, d datastore.Deployment) error {
 	if issuer == "" {
 		return errors.New("received empty issuer argument")
 	}
-	if err := datastore.ValidateDeploymentID(deploymentID); err != nil {
+	if err := datastore.ValidateDeploymentID(d.DeploymentID); err != nil {
 		return fmt.Errorf("received invalid deployment ID: %v", err)
 	}
 
@@ -205,7 +205,7 @@ func (s *Store) StoreDeployment(issuer, deploymentID string) error {
 
 	q := `INSERT INTO ` + s.deployment.table + ` (` + s.deployment.issuer + `,` + s.deployment.deploymentID + `)
                    VALUES ($1, $2)`
-	result, err := tx.Exec(q, issuer, deploymentID)
+	result, err := tx.Exec(q, issuer, d.DeploymentID)
 	if err != nil {
 		tx.Rollback()
 		return err

@@ -54,16 +54,15 @@ func deploymentIndex(issuer, deploymentID string) string {
 }
 
 // StoreDeployment stores a deployment ID in-memory.
-func (s *Store) StoreDeployment(issuer, deploymentID string) error {
+func (s *Store) StoreDeployment(issuer string, d datastore.Deployment) error {
 	if issuer == "" {
 		return errors.New("received empty issuer argument")
 	}
-	if err := datastore.ValidateDeploymentID(deploymentID); err != nil {
+	if err := datastore.ValidateDeploymentID(d.DeploymentID); err != nil {
 		return fmt.Errorf("received invalid deployment ID: %w", err)
 	}
 
-	s.Deployments.Store(deploymentIndex(issuer, deploymentID),
-		datastore.Deployment{DeploymentID: deploymentID})
+	s.Deployments.Store(deploymentIndex(issuer, d.DeploymentID), d)
 	return nil
 }
 
