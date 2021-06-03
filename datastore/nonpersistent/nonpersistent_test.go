@@ -237,7 +237,7 @@ func TestFindAccessToken(t *testing.T) {
 	}
 
 	_, err = npStore.FindAccessToken(testToken.TokenURI, testToken.ClientID, testToken.Scopes)
-	if err.Error() != "access token has expired" {
+	if err != datastore.ErrAccessTokenExpired {
 		t.Fatal("error not reported for expired token")
 	}
 

@@ -224,7 +224,7 @@ func (s *Store) FindAccessToken(tokenURI, clientID string, scopes []string) (dat
 		return datastore.AccessToken{}, fmt.Errorf("could not decode access token: %w", err)
 	}
 	if accessToken.ExpiryTime.Before(time.Now()) {
-		return datastore.AccessToken{}, errors.New("access token has expired")
+		return datastore.AccessToken{}, datastore.ErrAccessTokenExpired
 	}
 
 	return accessToken, nil
