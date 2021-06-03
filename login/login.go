@@ -28,6 +28,7 @@ func New(cfg datastore.Config) *Login {
 	if login.cfg.Nonces == nil {
 		login.cfg.Nonces = nonpersistent.DefaultStore
 	}
+
 	return &login
 }
 
@@ -43,18 +44,21 @@ func (l *Login) RedirectURI(r *http.Request) (string, http.Cookie, error) {
 	if err != nil {
 		return "", http.Cookie{}, err
 	}
+
 	// Generate state and state cookie.
 	state := "state-" + uuid.New().String()
 	stateCookie := http.Cookie{
 		Name:  "stateCookie",
 		Value: state,
 	}
+
 	// Generate and store nonce.
 	nonce := uuid.New().String()
 	err = l.cfg.Nonces.StoreNonce(nonce, registration.TargetLinkURI.String())
 	if err != nil {
 		return "", http.Cookie{}, err
 	}
+
 	// Build auth response to initial login request.
 	values := url.Values{}
 	values.Set("scope", "openid")
@@ -66,10 +70,12 @@ func (l *Login) RedirectURI(r *http.Request) (string, http.Cookie, error) {
 	values.Set("state", state)
 	values.Set("nonce", nonce)
 	values.Set("login_hint", r.FormValue("login_hint"))
+
 	// Pass back the message hint if received.
 	if r.FormValue("lti_message_hint") != "" {
 		values.Set("lti_message_hint", r.FormValue("lti_message_hint"))
 	}
+
 	redirectURI := registration.AuthLoginURI
 	redirectURI.RawQuery = values.Encode()
 	return redirectURI.String(), stateCookie, nil
@@ -81,6 +87,7 @@ func (l *Login) JSRedirect(w http.ResponseWriter, r *http.Request) (string, erro
 	if err != nil {
 		return "", err
 	}
+
 	return "JS redirect code using: " + redirect + stateCookie.Name, nil
 }
 
@@ -93,6 +100,7 @@ func (l *Login) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
 	http.SetCookie(w, &stateCookie)
 	http.Redirect(w, r, redirectURI, http.StatusFound)
 }
@@ -103,18 +111,22 @@ func (l *Login) validate(r *http.Request) (datastore.Registration, error) {
 	if r.FormValue("iss") == "" {
 		return datastore.Registration{}, errors.New("issuer not found in login request")
 	}
+
 	// Validate login hint.
 	if r.FormValue("login_hint") == "" {
 		return datastore.Registration{}, errors.New("login hint not found in login request")
 	}
+
 	// Validate target link uri.
 	if r.FormValue("target_link_uri") == "" {
 		return datastore.Registration{}, errors.New("target link uri not found in login request")
 	}
+
 	// Find Registration by issuer.
 	registration, err := l.cfg.Registrations.FindRegistrationByIssuer(r.FormValue("iss"))
 	if err != nil {
 		return datastore.Registration{}, err
 	}
+
 	return registration, nil
 }
