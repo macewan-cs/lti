@@ -66,14 +66,14 @@ type Result struct {
 
 // A LineItem represents the specific resource associated with a LTI launch.
 type LineItem struct {
-	ID             string
-	StartDateTime  string
-	EndDateTime    string
-	ScoreMaximum   float64
-	Label          string
-	Tag            string
-	ResourceID     string
-	ResourceLinkID string
+	ID             string  `json:"id,omitempty"`
+	StartDateTime  string  `json:"startDateTime,omitempty"`
+	EndDateTime    string  `json:"endDateTime,omitempty"`
+	ScoreMaximum   float64 `json:"scoreMaximum,omitempty"`
+	Label          string  `json:"label,omitempty"`
+	Tag            string  `json:"tag,omitempty"`
+	ResourceID     string  `json:"resourceId,omitempty"`
+	ResourceLinkID string  `json:"resourceLinkId,omitempty"`
 }
 
 // UpgradeAGS provides a Connector upgraded for AGS calls.
@@ -310,4 +310,139 @@ func (a *AGS) GetLineitem() (LineItem, error) {
 	}
 
 	return lineItem, nil
+}
+
+// GetLineItems gets all the lineitems for the launched context, i.e. all columns in the course gradebook.
+func (a *AGS) GetLineItems() ([]LineItem, error) {
+	scopes := []string{"https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly"}
+
+	s := ServiceRequest{
+		Scopes:         scopes,
+		Method:         http.MethodGet,
+		URI:            a.LineItems,
+		Accept:         "application/vnd.ims.lis.v2.lineitemcontainer+json",
+		ExpectedStatus: http.StatusOK,
+	}
+
+	_, body, err := a.Target.makeServiceRequest(s)
+	if err != nil {
+		return []LineItem{}, fmt.Errorf("get lineitems make service request error: %w", err)
+	}
+
+	defer body.Close()
+	var lineItems []LineItem
+	err = json.NewDecoder(body).Decode(&lineItems)
+	if err != nil {
+		return []LineItem{}, fmt.Errorf("could not decode get lineitems response body: %w", err)
+	}
+
+	return lineItems, nil
+}
+
+// UpdateLineItem sends an encoded LineItem used by the platform to update its definition of the launched lineitem, or
+// the lineitem at the optional notLaunchedLineItemEndpoint parameter if updating the launched lineitem is not desired.
+func (a *AGS) UpdateLineItem(lineItem LineItem, notLaunchedLineItemEndpoint string) (LineItem, error) {
+	scopes := []string{"https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"}
+
+	var body bytes.Buffer
+	err := json.NewEncoder(&body).Encode(lineItem)
+	if err != nil {
+		return LineItem{}, fmt.Errorf("could not encode lineitem to update: %w", err)
+	}
+
+	var lineItemToUpdateURI *url.URL
+	if notLaunchedLineItemEndpoint == "" {
+		lineItemToUpdateURI = a.LineItem
+	} else {
+		lineItemToUpdateURI, err = url.Parse(notLaunchedLineItemEndpoint)
+		if err != nil {
+			return LineItem{}, fmt.Errorf("could not parse update endpoint URI: %w", err)
+		}
+	}
+
+	s := ServiceRequest{
+		Scopes:         scopes,
+		Method:         http.MethodPut,
+		URI:            lineItemToUpdateURI,
+		Body:           &body,
+		ContentType:    "application/vnd.ims.lis.v2.lineitem+json",
+		Accept:         "application/vnd.ims.lis.v2.lineitem+json",
+		ExpectedStatus: http.StatusOK,
+	}
+
+	_, responseBody, err := a.Target.makeServiceRequest(s)
+	if err != nil {
+		return LineItem{}, fmt.Errorf("update lineitem make service request error: %w", err)
+	}
+
+	defer responseBody.Close()
+	var updatedLineItem LineItem
+	err = json.NewDecoder(responseBody).Decode(&updatedLineItem)
+	if err != nil {
+		return LineItem{}, fmt.Errorf("could not decode update lineitem response body: %w", err)
+	}
+
+	return updatedLineItem, nil
+}
+
+// CreateNewLineItem creates a new gradebook column in the launched context's lineitems container.
+func (a *AGS) CreateNewLineItem(lineItem LineItem) (LineItem, error) {
+	scopes := []string{"https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"}
+
+	var body bytes.Buffer
+	err := json.NewEncoder(&body).Encode(lineItem)
+	if err != nil {
+		return LineItem{}, fmt.Errorf("could not encode lineitem to create: %w", err)
+	}
+
+	s := ServiceRequest{
+		Scopes:         scopes,
+		Method:         http.MethodPost,
+		URI:            a.LineItems,
+		Body:           &body,
+		ContentType:    "application/vnd.ims.lis.v2.lineitem+json",
+		Accept:         "application/vnd.ims.lis.v2.lineitem+json",
+		ExpectedStatus: http.StatusCreated,
+	}
+
+	_, responseBody, err := a.Target.makeServiceRequest(s)
+	if err != nil {
+		return LineItem{}, fmt.Errorf("create lineitem make service request error: %w", err)
+	}
+
+	defer responseBody.Close()
+	var createdLineItem LineItem
+	err = json.NewDecoder(responseBody).Decode(&createdLineItem)
+	if err != nil {
+		return LineItem{}, fmt.Errorf("could not decode update lineitem response body: %w", err)
+	}
+
+	return createdLineItem, nil
+}
+
+// DeleteLineItem removes a lineitem specified by the argument from the context's gradebook.
+func (a *AGS) DeleteLineItem(lineItemToDeleteEndpoint string) error {
+	if lineItemToDeleteEndpoint == "" {
+		return errors.New("received empty lineitem to delete")
+	}
+	scopes := []string{"https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"}
+
+	lineItemToDeleteURI, err := url.Parse(lineItemToDeleteEndpoint)
+	if err != nil {
+		return fmt.Errorf("could not parse delete endpoint URI: %w", err)
+	}
+
+	s := ServiceRequest{
+		Scopes:         scopes,
+		Method:         http.MethodDelete,
+		URI:            lineItemToDeleteURI,
+		ExpectedStatus: http.StatusNoContent,
+	}
+
+	_, _, err = a.Target.makeServiceRequest(s)
+	if err != nil {
+		return fmt.Errorf("update lineitem make service request error: %w", err)
+	}
+
+	return nil
 }
