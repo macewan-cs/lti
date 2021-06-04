@@ -385,8 +385,8 @@ func (a *AGS) UpdateLineItem(lineItem LineItem, notLaunchedLineItemEndpoint stri
 	return updatedLineItem, nil
 }
 
-// CreateNewLineItem creates a new gradebook column in the launched context's lineitems container.
-func (a *AGS) CreateNewLineItem(lineItem LineItem) (LineItem, error) {
+// CreateLineItem creates a new gradebook column in the launched context's lineitems container.
+func (a *AGS) CreateLineItem(lineItem LineItem) (LineItem, error) {
 	scopes := []string{"https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"}
 
 	var body bytes.Buffer
