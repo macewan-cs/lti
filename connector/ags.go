@@ -65,16 +65,16 @@ type Result struct {
 }
 
 // A LineItem represents the specific resource associated with a LTI launch.
-// type LineItem struct {
-// 	ID             string
-// 	StartDateTime  string
-// 	EndDateTime    string
-// 	ScoreMaximum   float64
-// 	Label          string
-// 	Tag            string
-// 	ResourceID     string
-// 	ResourceLinkID string
-// }
+type LineItem struct {
+	ID             string
+	StartDateTime  string
+	EndDateTime    string
+	ScoreMaximum   float64
+	Label          string
+	Tag            string
+	ResourceID     string
+	ResourceLinkID string
+}
 
 // UpgradeAGS provides a Connector upgraded for AGS calls.
 func (c *Connector) UpgradeAGS() (*AGS, error) {
@@ -283,4 +283,31 @@ func (a *AGS) GetPagedResults(limit int, userID string) ([]Result, bool, error) 
 	a.NextPage = nextPage
 
 	return results, true, nil
+}
+
+// GetLineItem gets the currently launched AGS lineitem.
+func (a *AGS) GetLineitem() (LineItem, error) {
+	scopes := []string{"https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly"}
+
+	s := ServiceRequest{
+		Scopes:         scopes,
+		Method:         http.MethodGet,
+		URI:            a.LineItem,
+		Accept:         "application/vnd.ims.lis.v2.lineitem+json",
+		ExpectedStatus: http.StatusOK,
+	}
+
+	_, body, err := a.Target.makeServiceRequest(s)
+	if err != nil {
+		return LineItem{}, fmt.Errorf("get lineitem make service request error: %w", err)
+	}
+
+	defer body.Close()
+	var lineItem LineItem
+	err = json.NewDecoder(body).Decode(&lineItem)
+	if err != nil {
+		return LineItem{}, fmt.Errorf("could not decode get lineitem response body: %w", err)
+	}
+
+	return lineItem, nil
 }
