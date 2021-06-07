@@ -3,10 +3,9 @@
 // This source code is licensed under the MIT-style license found in
 // the LICENSE file in the root directory of this source tree.
 
-// Package lti supports the development of LTI 1.3 tools. It provides
-// types and methods to support the OpenID Connect flow, the tool
-// launch, and the use of a platform's ``Names and Role Provisioning
-// Services'' and ``Assignment and Grade Services.''
+// Package lti supports the development of LTI 1.3 tools. It provides types and methods to support the OpenID Connect
+// flow, the tool launch, and the use of a platform's 'Names and Role Provisioning Services' and 'Assignment and Grade
+// Services.'
 package lti
 
 import (
