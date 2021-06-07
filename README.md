@@ -1,4 +1,6 @@
-# Learning Tools Interoperability (LTI) Library for Learning Tools
+# macewan-cs/lti
+
+[![GoDoc](https://godoc.org/github.com/macewan-cs/lti?status.svg)](https://godoc.org/github.com/macewan-cs/lti)
 
 > This Go-based library allows learning tool developers to easily connect their learning tools with a learning platform.
 >
