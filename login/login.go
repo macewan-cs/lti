@@ -51,6 +51,7 @@ func (l *Login) RedirectURI(r *http.Request) (string, http.Cookie, error) {
 	stateCookie := http.Cookie{
 		Name:  "stateCookie",
 		Value: state,
+		Path:  registration.TargetLinkURI.EscapedPath(),
 	}
 
 	// Generate and store nonce.
