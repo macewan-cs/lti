@@ -167,8 +167,8 @@ func (n *NRPS) GetPagedMembership(limit int) (Membership, bool, error) {
 	return membership, true, nil
 }
 
-// GetLaunchingMember returns a Member struct representing the user that performed the launch. Notable omissions
-// include Status and Roles, which are not included in the launch message.
+// GetLaunchingMember returns a Member struct representing the user that performed the launch. Status is not included
+// in the launch message.
 func (n *NRPS) GetLaunchingMember() (Member, error) {
 	var launchingMember Member
 
@@ -211,6 +211,17 @@ func (n *NRPS) GetLaunchingMember() (Member, error) {
 		return Member{}, errors.New("could not assert launching member name")
 	}
 	launchingMember.Name = name
+
+	rawRoles, ok := n.Target.LaunchToken.Get("https://purl.imsglobal.org/spec/lti/claim/roles")
+	if !ok {
+		return Member{}, errors.New("launching member roles not found")
+	}
+	rolesInterfaces, ok := rawRoles.([]interface{})
+	if !ok {
+		return Member{}, errors.New("could not assert launching member roles")
+	}
+	launchingRoles := convertInterfaceToStringSlice(rolesInterfaces)
+	launchingMember.Roles = launchingRoles
 
 	launchingMember.UserID = n.Target.LaunchToken.Subject()
 
