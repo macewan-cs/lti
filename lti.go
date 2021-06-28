@@ -10,15 +10,32 @@ package lti
 
 import (
 	"context"
+	"crypto/x509"
 	"database/sql"
+	"encoding/json"
+	"encoding/pem"
 	"net/http"
 
+	"github.com/lestrrat-go/jwx/jwk"
 	"github.com/macewan-cs/lti/connector"
 	"github.com/macewan-cs/lti/datastore"
 	dssql "github.com/macewan-cs/lti/datastore/sql"
 	"github.com/macewan-cs/lti/launch"
 	"github.com/macewan-cs/lti/login"
 )
+
+// JSONWebKeySet provides configuration for a keyset handler implemented on this type. The ServeHTTP method is
+// implemented for this type to allow it to serve as an http.Handler.
+type JSONWebKeySet struct {
+	Identifier string
+	PrivateKey string
+}
+
+// KeySet is encoded to provide the public key to be fetched in order to verify the authenticity of JSON Web Tokens
+// sent from this library.
+type KeySet struct {
+	Keys [1]jwk.Key `json:"keys"`
+}
 
 // NewSQLDatastoreConfig returns a new SQL datastore configuration containing the library's default table and field
 // names. These table and field names can be modified before calling NewSQLDatastore.
@@ -83,4 +100,49 @@ func LaunchIDFromRequest(r *http.Request) string {
 // needs to be successfully `upgraded' (which returns a new type) before it can be used for these services.
 func NewConnector(cfg datastore.Config, launchID string) (*connector.Connector, error) {
 	return connector.New(cfg, launchID)
+}
+
+// NewKeySet returns a *JSONWebKeySet that provides the key used to verify the sender authenticity of JSON Web Tokens
+// exchanged as part of accessing LTI services between Platforms and Tools. This object is an http.handler so it can be
+// easily associated with a keyset URI, e.g., /services/lti/keyset.
+func NewKeyset(identifier, privateKey string) *JSONWebKeySet {
+	jsonWebKeySet := JSONWebKeySet{
+		Identifier: identifier,
+		PrivateKey: privateKey,
+	}
+
+	return &jsonWebKeySet
+}
+
+// ServeHTTP makes the JSONWebKeySet type a handler to provide a JSON Web Key Set response for key fetch requests.
+func (j *JSONWebKeySet) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	block, _ := pem.Decode([]byte(j.PrivateKey))
+	if block == nil {
+		http.Error(w, "failed to parse key", http.StatusInternalServerError)
+		return
+
+	}
+	privkey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	key, err := jwk.New(&privkey.PublicKey)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	key.Set(jwk.KeyIDKey, j.Identifier)
+	key.Set(jwk.AlgorithmKey, "RS256")
+	key.Set(jwk.KeyUsageKey, "sig")
+
+	var keyArr [1]jwk.Key = [1]jwk.Key{key}
+	jwks := KeySet{
+		Keys: keyArr,
+	}
+
+	w.Header().Add("Content-Type", "application/json")
+	enc := json.NewEncoder(w)
+	enc.Encode(jwks)
 }
