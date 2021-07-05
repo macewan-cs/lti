@@ -132,9 +132,10 @@ func (c *Connector) UpgradeAGS() (*AGS, error) {
 	}, nil
 }
 
-// PutScore posts a grade (LTI spec uses term 'score') for the launched resource to the platform's gradebook. The userID
-// argument is optional; supply the empty string to get the launching user's ID.
-func (a *AGS) PutScore(s Score, userID string) error {
+// PutScore posts a grade (LTI spec uses term 'score') for the launched resource to the platform's gradebook. The
+// useLaunchUserID argument specifies if the launching user's ID is used; supply false to send the user ID embedded in
+// the score argument.
+func (a *AGS) PutScore(s Score, useLaunchUserID bool) error {
 	scopes := []string{"https://purl.imsglobal.org/spec/lti-ags/scope/score"}
 
 	// Make a copy of the lineitem and add the /scores path.
@@ -146,18 +147,18 @@ func (a *AGS) PutScore(s Score, userID string) error {
 	query := a.LineItem.Query()
 	scoreURI.RawQuery = query.Encode()
 
-	if userID == "" {
+	if useLaunchUserID {
 		// The launch data 'sub' claim is the launching user_ID.
 		userIDClaim, ok := a.Target.LaunchToken.Get("sub")
 		if !ok {
 			return errors.New("could not get user ID to publish score")
 		}
-		userID, ok = userIDClaim.(string)
+		userID, ok := userIDClaim.(string)
 		if !ok {
 			return errors.New("could not assert user ID to publish score")
 		}
+		s.UserID = userID
 	}
-	s.UserID = userID
 
 	var body bytes.Buffer
 	err = json.NewEncoder(&body).Encode(s)
