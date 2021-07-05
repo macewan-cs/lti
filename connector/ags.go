@@ -46,8 +46,8 @@ const (
 // A Score represents a grade assigned by the tool and sent to the platform.
 type Score struct {
 	Timestamp        string  `json:"timestamp"`
-	ScoreGiven       float32 `json:"scoreGiven"`
-	ScoreMaximum     float32 `json:"scoreMaximum"`
+	ScoreGiven       float64 `json:"scoreGiven"`
+	ScoreMaximum     float64 `json:"scoreMaximum"`
 	Comment          string  `json:"comment"`
 	ActivityProgress string  `json:"activityProgress"`
 	GradingProgress  string  `json:"gradingProgress"`
