@@ -140,7 +140,7 @@ func (c *Connector) setLaunchTokenFromLaunchData(launchID string) error {
 
 // getRegistration uses the Connector's LaunchToken issuer to get the associated registration.
 func (c *Connector) getRegistration() (datastore.Registration, error) {
-	registration, err := c.cfg.Registrations.FindRegistrationByIssuer(c.LaunchToken.Issuer())
+	registration, err := c.cfg.Registrations.FindRegistrationByIssuerAndClientID(c.LaunchToken.Issuer(), c.LaunchToken.Audience()[0])
 	if err != nil {
 		return datastore.Registration{}, err
 	}

@@ -43,9 +43,13 @@ func New() *Store {
 	}
 }
 
+func registrationIndex(issuer, clientID string) string {
+	return issuer + "/" + clientID
+}
+
 // StoreRegistration stores a Registration in-memory.
 func (s *Store) StoreRegistration(reg datastore.Registration) error {
-	s.Registrations.Store(reg.Issuer, reg)
+	s.Registrations.Store(registrationIndex(reg.Issuer, reg.ClientID), reg)
 	return nil
 }
 
@@ -66,17 +70,22 @@ func (s *Store) StoreDeployment(issuer string, d datastore.Deployment) error {
 	return nil
 }
 
-// FindRegistrationByIssuer looks up and returns either a Registration by the issuer or the datastore error
+// FindRegistrationByIssuerAndClientID looks up and returns either a Registration by the issuer or the datastore error
 // ErrRegistrationNotFound.
-func (s *Store) FindRegistrationByIssuer(issuer string) (datastore.Registration, error) {
+func (s *Store) FindRegistrationByIssuerAndClientID(issuer, clientID string) (datastore.Registration, error) {
 	if issuer == "" {
 		return datastore.Registration{}, errors.New("received empty issuer argument")
 	}
 
-	registration, ok := s.Registrations.Load(issuer)
+	if clientID == "" {
+		return datastore.Registration{}, errors.New("received empty client ID argument")
+	}
+
+	registration, ok := s.Registrations.Load(registrationIndex(issuer, clientID))
 	if !ok {
 		return datastore.Registration{}, datastore.ErrRegistrationNotFound
 	}
+
 	return registration.(datastore.Registration), nil
 }
 

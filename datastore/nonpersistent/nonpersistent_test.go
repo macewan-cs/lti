@@ -44,17 +44,27 @@ func TestStoreAndFindRegistrationByIssuer(t *testing.T) {
 		t.Fatalf("store registration error: %v", err)
 	}
 
-	_, err = npStore.FindRegistrationByIssuer("")
+	_, err = npStore.FindRegistrationByIssuerAndClientID("", "clientID")
 	if err == nil {
 		t.Error("error not reported for empty issuer")
 	}
 
-	_, err = npStore.FindRegistrationByIssuer("unknown" + issuer)
+	_, err = npStore.FindRegistrationByIssuerAndClientID("issuer", "")
+	if err == nil {
+		t.Error("error not reported for empty client ID")
+	}
+
+	_, err = npStore.FindRegistrationByIssuerAndClientID("", "")
+	if err == nil {
+		t.Error("error not reported for empty issuer and/or client ID")
+	}
+
+	_, err = npStore.FindRegistrationByIssuerAndClientID("unknown"+issuer, "clientID")
 	if err != datastore.ErrRegistrationNotFound {
 		t.Error("unexpected error value for nonexistent issuer")
 	}
 
-	actual, err := npStore.FindRegistrationByIssuer(issuer)
+	actual, err := npStore.FindRegistrationByIssuerAndClientID(issuer, registration.ClientID)
 	if err != nil {
 		t.Fatalf("find registration error: %v", err)
 	}

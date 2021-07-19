@@ -97,14 +97,15 @@ func TestStoreRegistration(t *testing.T) {
 	}
 	defer db.Close()
 
-	// The UNIQUE constraint (rather than PRIMARY KEY) is necessary for `ramsql'.
+	// `ramsql' does not support UNIQUE constraint.
 	mustExec(t, db, `CREATE TABLE registration (
-                           issuer text UNIQUE,
+                           issuer text,
                            client_id text,
                            auth_token_uri text,
                            auth_login_uri text,
                            keyset_uri text,
-                           target_link_uri text
+                           target_link_uri text,
+                           PRIMARY KEY (issuer, client_id)
                          )`)
 
 	store := New(db, NewConfig())
@@ -115,27 +116,26 @@ func TestStoreRegistration(t *testing.T) {
 		t.Fatalf("cannot store registration: %v", err)
 	}
 
-	err = store.StoreRegistration(registration)
-	if err == nil {
-		t.Fatalf("stored duplicate registration")
-	}
+	// Do not test the storing of duplicate registrations because the `ramsql'
+	// package does not correctly support UNIQUE constraints.
 }
 
-func TestStoreAndFindRegistrationByIssuer(t *testing.T) {
-	db, err := sql.Open("ramsql", "TestFindRegistrationByIssuer")
+func TestStoreAndFindRegistrationByIssuerAndClientID(t *testing.T) {
+	db, err := sql.Open("ramsql", "TestFindRegistrationByIssuerAndClientID")
 	if err != nil {
 		t.Fatalf("cannot open database: %v", err)
 	}
 	defer db.Close()
 
-	// The UNIQUE constraint (rather than PRIMARY KEY) is necessary for `ramsql'.
+	// `ramsql' does not support UNIQUE constraint.
 	mustExec(t, db, `CREATE TABLE registration (
-                           issuer text UNIQUE,
+                           issuer text,
                            client_id text,
                            auth_token_uri text,
                            auth_login_uri text,
                            keyset_uri text,
-                           target_link_uri text
+                           target_link_uri text,
+                           PRIMARY KEY (issuer, client_id)
                          )`)
 
 	store := New(db, NewConfig())
@@ -146,7 +146,7 @@ func TestStoreAndFindRegistrationByIssuer(t *testing.T) {
 		t.Fatalf("cannot store registration: %v", err)
 	}
 
-	foundRegistration, err := store.FindRegistrationByIssuer("a")
+	foundRegistration, err := store.FindRegistrationByIssuerAndClientID("a", "b")
 	if err != nil {
 		t.Fatalf("cannot find registration: %v", err)
 	}
@@ -155,7 +155,7 @@ func TestStoreAndFindRegistrationByIssuer(t *testing.T) {
 		t.Fatalf("got %#v, wanted %#v", foundRegistration, registration)
 	}
 
-	foundRegistration, err = store.FindRegistrationByIssuer("b")
+	foundRegistration, err = store.FindRegistrationByIssuerAndClientID("b", "c")
 	if err == nil {
 		t.Fatalf("unexpectedly found registration")
 	}

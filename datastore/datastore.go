@@ -76,9 +76,9 @@ type RegistrationStorer interface {
 	// StoreRegistration stores a registration for later retrieval.
 	StoreRegistration(Registration) error
 
-	// FindRegistrationByIssuer retrieves a previously-stored registration using the `issuer' field. If the
-	// registration cannot be found, it returns ErrRegistrationNotFound.
-	FindRegistrationByIssuer(issuer string) (Registration, error)
+	// FindRegistrationByIssuerAndClientID retrieves a previously-stored registration using the `issuer' and
+	// `clientID' fields. If the registration cannot be found, it returns ErrRegistrationNotFound.
+	FindRegistrationByIssuerAndClientID(issuer string, clientID string) (Registration, error)
 
 	// StoreDeployment stores a deployment for later retrieval.
 	StoreDeployment(issuer string, deployment Deployment) error

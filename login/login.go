@@ -125,7 +125,7 @@ func (l *Login) validate(r *http.Request) (datastore.Registration, error) {
 	}
 
 	// Find Registration by issuer.
-	registration, err := l.cfg.Registrations.FindRegistrationByIssuer(r.FormValue("iss"))
+	registration, err := l.cfg.Registrations.FindRegistrationByIssuerAndClientID(r.FormValue("iss"), r.FormValue("client_id"))
 	if err != nil {
 		return datastore.Registration{}, err
 	}

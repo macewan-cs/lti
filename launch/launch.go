@@ -153,7 +153,8 @@ func validateRegistration(rawToken []byte, l *Launch, r *http.Request) (datastor
 	}
 
 	issuer := token.Issuer()
-	registration, err := l.cfg.Registrations.FindRegistrationByIssuer(issuer)
+	clientID := token.Audience()[0]
+	registration, err := l.cfg.Registrations.FindRegistrationByIssuerAndClientID(issuer, clientID)
 	if err != nil {
 		if err == datastore.ErrRegistrationNotFound {
 			return datastore.Registration{}, http.StatusBadRequest, fmt.Errorf("no registration found for iss %s", issuer)

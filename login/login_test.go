@@ -82,7 +82,7 @@ func TestValidate(t *testing.T) {
 	}
 
 	r = httptest.NewRequest(http.MethodPost, "https://tool.tld/login", bytes.NewReader(
-		[]byte("iss=https://platform.tld/instance&login_hint=1&target_link_uri=https://tool.tld")))
+		[]byte("iss=https://platform.tld/instance&login_hint=1&client_id=abcdef123456&target_link_uri=https://tool.tld")))
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	_, actual = login.validate(r)
 	if actual != nil {

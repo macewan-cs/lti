@@ -42,9 +42,10 @@ type Config struct {
 }
 
 type registrationIdentifiers struct {
-	table  string
-	fields string
-	issuer string
+	table    string
+	fields   string
+	issuer   string
+	clientID string
 }
 
 type deploymentIdentifiers struct {
@@ -97,7 +98,8 @@ func New(database *sql.DB, config Config) *Store {
 				config.RegistrationFields.KeysetURI,
 				config.RegistrationFields.TargetLinkURI,
 			}, ","),
-			issuer: config.RegistrationFields.Issuer,
+			issuer:   config.RegistrationFields.Issuer,
+			clientID: config.RegistrationFields.ClientID,
 		},
 		deployment: deploymentIdentifiers{
 			table:        config.DeploymentTable,
@@ -147,20 +149,25 @@ func (s *Store) StoreRegistration(reg datastore.Registration) error {
 	return nil
 }
 
-// FindRegistrationByIssuer retrieves a registration from the SQL database.
-func (s *Store) FindRegistrationByIssuer(issuer string) (datastore.Registration, error) {
+// FindRegistrationByIssuerAndClientID retrieves a registration from the SQL database.
+func (s *Store) FindRegistrationByIssuerAndClientID(issuer, clientID string) (datastore.Registration, error) {
 	if issuer == "" {
 		return datastore.Registration{}, errors.New("received empty issuer argument")
 	}
 
+	if clientID == "" {
+		return datastore.Registration{}, errors.New("received empty client ID argument")
+	}
+
 	q := `SELECT ` + s.registration.fields + `
                 FROM ` + s.registration.table + `
-               WHERE ` + s.registration.issuer + ` = $1`
+               WHERE ` + s.registration.issuer + ` = $1
+                 AND ` + s.registration.clientID + ` = $2`
 	var (
 		reg                                                  datastore.Registration
 		authTokenURI, authLoginURI, keysetURI, targetLinkURI string
 	)
-	err := s.DB.QueryRow(q, issuer).Scan(&reg.Issuer, &reg.ClientID, &authTokenURI, &authLoginURI,
+	err := s.DB.QueryRow(q, issuer, clientID).Scan(&reg.Issuer, &reg.ClientID, &authTokenURI, &authLoginURI,
 		&keysetURI, &targetLinkURI)
 	if err != nil {
 		if err == sql.ErrNoRows {
