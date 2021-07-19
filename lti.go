@@ -105,7 +105,7 @@ func NewConnector(cfg datastore.Config, launchID string) (*connector.Connector, 
 // NewKeySet returns a *JSONWebKeySet that provides the key used to verify the sender authenticity of JSON Web Tokens
 // exchanged as part of accessing LTI services between Platforms and Tools. This object is an http.handler so it can be
 // easily associated with a keyset URI, e.g., /services/lti/keyset.
-func NewKeyset(identifier, privateKey string) *JSONWebKeySet {
+func NewKeySet(identifier, privateKey string) *JSONWebKeySet {
 	jsonWebKeySet := JSONWebKeySet{
 		Identifier: identifier,
 		PrivateKey: privateKey,
