@@ -155,19 +155,25 @@ func (s *Store) FindRegistrationByIssuerAndClientID(issuer, clientID string) (da
 		return datastore.Registration{}, errors.New("received empty issuer argument")
 	}
 
-	if clientID == "" {
-		return datastore.Registration{}, errors.New("received empty client ID argument")
-	}
-
 	q := `SELECT ` + s.registration.fields + `
                 FROM ` + s.registration.table + `
-               WHERE ` + s.registration.issuer + ` = $1
+               WHERE ` + s.registration.issuer + ` = $1`
+	qArgs := []interface{}{issuer}
+	if clientID != "" {
+		// Use the client ID to disambiguate multiple registrations for an issuer.  The (optional) client ID
+		// parameter can disambiguate between multiple registrations from a single issuer.
+		//
+		// Source: http://www.imsglobal.org/spec/lti/v1p3/#client_id-login-parameter
+		q += `
                  AND ` + s.registration.clientID + ` = $2`
+		qArgs = append(qArgs, clientID)
+	}
+
 	var (
 		reg                                                  datastore.Registration
 		authTokenURI, authLoginURI, keysetURI, targetLinkURI string
 	)
-	err := s.DB.QueryRow(q, issuer, clientID).Scan(&reg.Issuer, &reg.ClientID, &authTokenURI, &authLoginURI,
+	err := s.DB.QueryRow(q, qArgs...).Scan(&reg.Issuer, &reg.ClientID, &authTokenURI, &authLoginURI,
 		&keysetURI, &targetLinkURI)
 	if err != nil {
 		if err == sql.ErrNoRows {

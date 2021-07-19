@@ -49,6 +49,9 @@ func registrationIndex(issuer, clientID string) string {
 
 // StoreRegistration stores a Registration in-memory.
 func (s *Store) StoreRegistration(reg datastore.Registration) error {
+	// Store the registration both with and without the client ID: later, the registration can be retrieved with or
+	// without it. See FindRegistrationByIssuerAndClientID for further details.
+	s.Registrations.Store(reg.Issuer, reg)
 	s.Registrations.Store(registrationIndex(reg.Issuer, reg.ClientID), reg)
 	return nil
 }
@@ -77,11 +80,16 @@ func (s *Store) FindRegistrationByIssuerAndClientID(issuer, clientID string) (da
 		return datastore.Registration{}, errors.New("received empty issuer argument")
 	}
 
-	if clientID == "" {
-		return datastore.Registration{}, errors.New("received empty client ID argument")
+	index := issuer
+	if clientID != "" {
+		// Use the client ID to disambiguate multiple registrations for an issuer.  The (optional) client ID
+		// parameter can disambiguate between multiple registrations from a single issuer.
+		//
+		// Source: http://www.imsglobal.org/spec/lti/v1p3/#client_id-login-parameter
+		index = registrationIndex(issuer, clientID)
 	}
 
-	registration, ok := s.Registrations.Load(registrationIndex(issuer, clientID))
+	registration, ok := s.Registrations.Load(index)
 	if !ok {
 		return datastore.Registration{}, datastore.ErrRegistrationNotFound
 	}

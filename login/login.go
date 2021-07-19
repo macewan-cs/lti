@@ -124,7 +124,7 @@ func (l *Login) validate(r *http.Request) (datastore.Registration, error) {
 		return datastore.Registration{}, errors.New("target link uri not found in login request")
 	}
 
-	// Find Registration by issuer.
+	// Find Registration by issuer and/or client ID.
 	registration, err := l.cfg.Registrations.FindRegistrationByIssuerAndClientID(r.FormValue("iss"), r.FormValue("client_id"))
 	if err != nil {
 		return datastore.Registration{}, err
