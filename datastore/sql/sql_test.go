@@ -188,11 +188,6 @@ func TestStoreDeployment(t *testing.T) {
 	if err == nil {
 		t.Errorf("issuer not validated")
 	}
-
-	err = store.StoreDeployment("a", datastore.Deployment{DeploymentID: "b"})
-	if err == nil {
-		t.Errorf("deployment ID not validated")
-	}
 }
 
 func TestFindDeployment(t *testing.T) {
