@@ -81,8 +81,6 @@ type RegistrationStorer interface {
 	FindRegistrationByIssuer(issuer string) (Registration, error)
 
 	// StoreDeployment stores a deployment for later retrieval.
-
-	// Change to take a Deployment struct.
 	StoreDeployment(issuer string, deployment Deployment) error
 
 	// FindDeployment retrieves a previously-stored deployment using the `issuer' and `deploymentID'. Its primary
@@ -125,6 +123,8 @@ type LaunchDataStorer interface {
 
 // ErrAccessTokenNotFound is the error returned when an access token cannot be found.
 var ErrAccessTokenNotFound = errors.New("access token not found")
+
+// ErrAccessTokenExpired is the error returned when an access token has expired.
 var ErrAccessTokenExpired = errors.New("access token has expired")
 
 // An AccessTokenStorer manages the storage and retrieval of access tokens.

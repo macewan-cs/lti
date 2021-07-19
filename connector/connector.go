@@ -32,6 +32,8 @@ import (
 )
 
 var (
+	// ErrUnsupportedService is returned when the connector cannot be upgraded to either NRPS
+	// or AGS because the platform does not appear to support the service.
 	ErrUnsupportedService = errors.New("platform/LMS does not support the requested service")
 )
 
