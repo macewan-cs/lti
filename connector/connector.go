@@ -50,6 +50,7 @@ var timeout time.Duration = time.Second * 15
 // A Connector implements the base that underpins LTI 1.3 Advantage, i.e. AGS or NRPS.
 type Connector struct {
 	cfg         datastore.Config
+	keyID       string
 	LaunchID    string
 	LaunchToken jwt.Token
 	SigningKey  *rsa.PrivateKey
@@ -68,9 +69,10 @@ type ServiceRequest struct {
 }
 
 // New creates a *Connector. To function as expected, a valid launchID must be supplied.
-func New(cfg datastore.Config, launchID string) (*Connector, error) {
+func New(cfg datastore.Config, launchID, keyID string) (*Connector, error) {
 	connector := Connector{
 		cfg:      cfg,
+		keyID:    keyID,
 		LaunchID: launchID,
 	}
 
@@ -194,11 +196,16 @@ func (c *Connector) createRequest(tokenURI, clientID string, scopes []string) (*
 	token.Set(jwt.ExpirationKey, time.Now().Add(time.Second*AccessTokenTimeoutSeconds))
 	token.Set(jwt.JwtIDKey, "lti-service-token"+uuid.New().String())
 
-	key := c.SigningKey
-	if key == nil {
+	if c.SigningKey == nil {
 		return nil, errors.New("signing key has not been set for this connector")
 	}
-	signedToken, err := jwt.Sign(token, jwa.RS256, key)
+	signingKey, err := jwk.New(c.SigningKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create jwk.Key: %w", err)
+	}
+	signingKey.Set(jwk.KeyIDKey, c.keyID)
+
+	signedToken, err := jwt.Sign(token, jwa.RS256, signingKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign bearer request token: %w", err)
 	}

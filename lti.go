@@ -96,10 +96,10 @@ func LaunchIDFromRequest(r *http.Request) string {
 }
 
 // NewConnector returns a *connector.Connector (on success) that can be used for accessing LTI services. These services
-// include Names and Role Provisioning Services (NRPS) and Assignments and Grade Services (AGS). The returned connector
+// include Names and Role Provisioning Services (NRPS) and Assignment and Grade Services (AGS). The returned connector
 // needs to be successfully `upgraded' (which returns a new type) before it can be used for these services.
-func NewConnector(cfg datastore.Config, launchID string) (*connector.Connector, error) {
-	return connector.New(cfg, launchID)
+func NewConnector(cfg datastore.Config, launchID, keyID string) (*connector.Connector, error) {
+	return connector.New(cfg, launchID, keyID)
 }
 
 // NewKeySet returns a *JSONWebKeySet that provides the key used to verify the sender authenticity of JSON Web Tokens
