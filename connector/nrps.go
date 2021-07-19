@@ -56,7 +56,7 @@ func (c *Connector) UpgradeNRPS() (*NRPS, error) {
 	// Check for endpoint.
 	nrpsRawClaim, ok := c.LaunchToken.Get("https://purl.imsglobal.org/spec/lti-nrps/claim/namesroleservice")
 	if !ok {
-		return nil, errors.New("names and roles endpoint not found in launch data")
+		return nil, ErrUnsupportedService
 	}
 	nrpsClaim, ok := nrpsRawClaim.(map[string]interface{})
 	if !ok {

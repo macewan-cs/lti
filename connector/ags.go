@@ -81,7 +81,7 @@ func (c *Connector) UpgradeAGS() (*AGS, error) {
 	// Check for endpoint.
 	agsRawClaims, ok := c.LaunchToken.Get("https://purl.imsglobal.org/spec/lti-ags/claim/endpoint")
 	if !ok {
-		return nil, errors.New("assignments and grades endpoint not found in launch data")
+		return nil, ErrUnsupportedService
 	}
 	agsClaims, ok := agsRawClaims.(map[string]interface{})
 	if !ok {

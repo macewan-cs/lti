@@ -31,6 +31,10 @@ import (
 	"github.com/macewan-cs/lti/datastore/nonpersistent"
 )
 
+var (
+	ErrUnsupportedService = errors.New("platform/LMS does not support the requested service")
+)
+
 const (
 	// AccessTokenTimeoutSeconds determines the JWT Expiration validity period in seconds.
 	AccessTokenTimeoutSeconds = 3600
