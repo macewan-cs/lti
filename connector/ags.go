@@ -290,7 +290,7 @@ func (a *AGS) GetPagedResults(limit int, userID string) ([]Result, bool, error) 
 }
 
 // GetLineItem gets the currently launched AGS lineitem.
-func (a *AGS) GetLineitem() (LineItem, error) {
+func (a *AGS) GetLineItem() (LineItem, error) {
 	scopes := []string{"https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly"}
 
 	s := ServiceRequest{
