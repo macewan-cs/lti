@@ -93,6 +93,11 @@ func New(cfg datastore.Config, launchID, keyID string) (*Connector, error) {
 	return &connector, nil
 }
 
+// ClientID returns the client ID associated with the connector.
+func (c *Connector) ClientID() string {
+	return c.LaunchToken.Audience()[0]
+}
+
 // SetSigningKey takes a PEM encoded private key and sets the signing key to the corresponding RSA private key.
 func (c *Connector) SetSigningKey(pemPrivateKey string) error {
 	if len(pemPrivateKey) == 0 {
