@@ -167,12 +167,11 @@ func (a *AGS) PutScore(s Score, useLaunchUserID bool) error {
 	}
 
 	_, _, err = a.Target.makeServiceRequest(ServiceRequest{
-		Scopes:         scopes,
-		Method:         http.MethodPost,
-		URI:            scoreURI,
-		Body:           &body,
-		ContentType:    "application/vnd.ims.lis.v1.score+json",
-		ExpectedStatus: http.StatusOK,
+		Scopes:      scopes,
+		Method:      http.MethodPost,
+		URI:         scoreURI,
+		Body:        &body,
+		ContentType: "application/vnd.ims.lis.v1.score+json",
 	})
 	if err != nil {
 		return fmt.Errorf("put score make service request error: %w", err)
@@ -248,11 +247,10 @@ func (a *AGS) GetPagedResults(limit int, userID string) ([]Result, bool, error) 
 	resultURI.Path += "/results"
 	resultURI.RawQuery = query.Encode()
 	s := ServiceRequest{
-		Scopes:         scopes,
-		Method:         http.MethodGet,
-		URI:            resultURI,
-		Accept:         "application/vnd.ims.lis.v2.resultcontainer+json",
-		ExpectedStatus: http.StatusOK,
+		Scopes: scopes,
+		Method: http.MethodGet,
+		URI:    resultURI,
+		Accept: "application/vnd.ims.lis.v2.resultcontainer+json",
 	}
 
 	// If there was a next page set from a previous response, use it.
@@ -294,11 +292,10 @@ func (a *AGS) GetLineItem() (LineItem, error) {
 	scopes := []string{"https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly"}
 
 	s := ServiceRequest{
-		Scopes:         scopes,
-		Method:         http.MethodGet,
-		URI:            a.LineItem,
-		Accept:         "application/vnd.ims.lis.v2.lineitem+json",
-		ExpectedStatus: http.StatusOK,
+		Scopes: scopes,
+		Method: http.MethodGet,
+		URI:    a.LineItem,
+		Accept: "application/vnd.ims.lis.v2.lineitem+json",
 	}
 
 	_, body, err := a.Target.makeServiceRequest(s)
@@ -321,11 +318,10 @@ func (a *AGS) GetLineItems() ([]LineItem, error) {
 	scopes := []string{"https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly"}
 
 	s := ServiceRequest{
-		Scopes:         scopes,
-		Method:         http.MethodGet,
-		URI:            a.LineItems,
-		Accept:         "application/vnd.ims.lis.v2.lineitemcontainer+json",
-		ExpectedStatus: http.StatusOK,
+		Scopes: scopes,
+		Method: http.MethodGet,
+		URI:    a.LineItems,
+		Accept: "application/vnd.ims.lis.v2.lineitemcontainer+json",
 	}
 
 	_, body, err := a.Target.makeServiceRequest(s)
@@ -365,13 +361,12 @@ func (a *AGS) UpdateLineItem(lineItem LineItem, notLaunchedLineItemEndpoint stri
 	}
 
 	s := ServiceRequest{
-		Scopes:         scopes,
-		Method:         http.MethodPut,
-		URI:            lineItemToUpdateURI,
-		Body:           &body,
-		ContentType:    "application/vnd.ims.lis.v2.lineitem+json",
-		Accept:         "application/vnd.ims.lis.v2.lineitem+json",
-		ExpectedStatus: http.StatusOK,
+		Scopes:      scopes,
+		Method:      http.MethodPut,
+		URI:         lineItemToUpdateURI,
+		Body:        &body,
+		ContentType: "application/vnd.ims.lis.v2.lineitem+json",
+		Accept:      "application/vnd.ims.lis.v2.lineitem+json",
 	}
 
 	_, responseBody, err := a.Target.makeServiceRequest(s)
@@ -400,13 +395,12 @@ func (a *AGS) CreateLineItem(lineItem LineItem) (LineItem, error) {
 	}
 
 	s := ServiceRequest{
-		Scopes:         scopes,
-		Method:         http.MethodPost,
-		URI:            a.LineItems,
-		Body:           &body,
-		ContentType:    "application/vnd.ims.lis.v2.lineitem+json",
-		Accept:         "application/vnd.ims.lis.v2.lineitem+json",
-		ExpectedStatus: http.StatusCreated,
+		Scopes:      scopes,
+		Method:      http.MethodPost,
+		URI:         a.LineItems,
+		Body:        &body,
+		ContentType: "application/vnd.ims.lis.v2.lineitem+json",
+		Accept:      "application/vnd.ims.lis.v2.lineitem+json",
 	}
 
 	_, responseBody, err := a.Target.makeServiceRequest(s)
@@ -437,10 +431,9 @@ func (a *AGS) DeleteLineItem(lineItemToDeleteEndpoint string) error {
 	}
 
 	s := ServiceRequest{
-		Scopes:         scopes,
-		Method:         http.MethodDelete,
-		URI:            lineItemToDeleteURI,
-		ExpectedStatus: http.StatusNoContent,
+		Scopes: scopes,
+		Method: http.MethodDelete,
+		URI:    lineItemToDeleteURI,
 	}
 
 	_, _, err = a.Target.makeServiceRequest(s)

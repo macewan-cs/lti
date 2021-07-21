@@ -59,13 +59,12 @@ type Connector struct {
 
 // A ServiceRequest structures service (AGS & NRPS) connections between tool and platform.
 type ServiceRequest struct {
-	Scopes         []string
-	Method         string
-	URI            *url.URL
-	Body           io.Reader
-	ContentType    string
-	Accept         string
-	ExpectedStatus int
+	Scopes      []string
+	Method      string
+	URI         *url.URL
+	Body        io.Reader
+	ContentType string
+	Accept      string
 }
 
 // New creates a *Connector. To function as expected, a valid launchID must be supplied.
@@ -311,9 +310,6 @@ func (c *Connector) makeServiceRequest(s ServiceRequest) (http.Header, io.ReadCl
 	if s.Accept == "" {
 		s.Accept = "application/json"
 	}
-	if s.ExpectedStatus == 0 {
-		s.ExpectedStatus = http.StatusOK
-	}
 
 	err := c.GetAccessToken(s.Scopes)
 	if err != nil {
@@ -333,7 +329,8 @@ func (c *Connector) makeServiceRequest(s ServiceRequest) (http.Header, io.ReadCl
 	if err != nil {
 		return nil, nil, fmt.Errorf("make service request client error: %w", err)
 	}
-	if response.StatusCode != s.ExpectedStatus {
+
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return nil, nil, fmt.Errorf("service request got response status %s", http.StatusText(response.StatusCode))
 	}
 

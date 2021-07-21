@@ -126,11 +126,10 @@ func (n *NRPS) GetPagedMembership(limit int) (Membership, bool, error) {
 	}
 	pagedURI.RawQuery = query.Encode()
 	s := ServiceRequest{
-		Scopes:         scopes,
-		Method:         http.MethodGet,
-		URI:            pagedURI,
-		Accept:         "application/vnd.ims.lti-nrps.v2.membershipcontainer+json",
-		ExpectedStatus: http.StatusOK,
+		Scopes: scopes,
+		Method: http.MethodGet,
+		URI:    pagedURI,
+		Accept: "application/vnd.ims.lti-nrps.v2.membershipcontainer+json",
 	}
 
 	// If there was a next page set from a previous response, use it.
