@@ -16,6 +16,11 @@ import (
 	"github.com/macewan-cs/lti/datastore/nonpersistent"
 )
 
+const (
+	StateCookieName       = "stateCookie"
+	LegacyStateCookieName = StateCookieName + "-legacy"
+)
+
 // New creates a new login object. If the passed Config has zero-value store interfaces, fall back on the in-memory
 // nonpersistent.DefaultStore.
 func New(cfg datastore.Config) *Login {
@@ -49,9 +54,15 @@ func (l *Login) RedirectURI(r *http.Request) (string, http.Cookie, error) {
 	// Generate state and state cookie.
 	state := "state-" + uuid.New().String()
 	stateCookie := http.Cookie{
-		Name:  "stateCookie",
+		Name:  StateCookieName,
 		Value: state,
 		Path:  registration.TargetLinkURI.EscapedPath(),
+		// Recent versions of Chrome have changed the default handling of Cookies. To support these versions of
+		// Chrome, the following options are necessary.
+		//
+		// Ref: https://blog.chromium.org/2019/10/developers-get-ready-for-new.html
+		SameSite: http.SameSiteNoneMode,
+		Secure:   true,
 	}
 
 	// Generate and store nonce.
@@ -104,6 +115,17 @@ func (l *Login) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.SetCookie(w, &stateCookie)
+
+	// Not all browsers support the SameSite=None setting. Create and attach a copy of the cookie without the
+	// SameSite=None for these browsers.
+	//
+	// Ref: https://www.imsglobal.org/samesite-cookie-issues-lti-tool-providers
+	legacyStateCookie := stateCookie
+	legacyStateCookie.Name = LegacyStateCookieName
+	legacyStateCookie.SameSite = http.SameSiteDefaultMode
+
+	http.SetCookie(w, &legacyStateCookie)
+
 	http.Redirect(w, r, redirectURI, http.StatusFound)
 }
 

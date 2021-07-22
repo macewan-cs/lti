@@ -20,6 +20,7 @@ import (
 	"github.com/lestrrat-go/jwx/jwt"
 	"github.com/macewan-cs/lti/datastore"
 	"github.com/macewan-cs/lti/datastore/nonpersistent"
+	"github.com/macewan-cs/lti/login"
 )
 
 // A Launch implements an external application's role in the LTI specification's launch flow.
@@ -187,11 +188,15 @@ func validateSignature(rawToken []byte, registration datastore.Registration, r *
 
 // validateState checks the state cookie against the state query value returned by the Platform.
 func validateState(r *http.Request) (int, error) {
-	state := r.FormValue("state")
-	stateCookie, err := r.Cookie("stateCookie")
-	if err != nil {
-		return http.StatusBadRequest, errors.New("state cookie not found")
+	stateCookie, err := r.Cookie(login.StateCookieName)
+	if errors.Is(err, http.ErrNoCookie) {
+		stateCookie, err = r.Cookie(login.LegacyStateCookieName)
 	}
+	if err != nil {
+		return http.StatusBadRequest, fmt.Errorf("cannot get cookie from request: %w", err)
+	}
+
+	state := r.FormValue("state")
 	if stateCookie.Value != state {
 		return http.StatusBadRequest, errors.New("state validation failed")
 	}
