@@ -116,15 +116,17 @@ func (l *Login) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	http.SetCookie(w, &stateCookie)
 
-	// Not all browsers support the SameSite=None setting. Create and attach a copy of the cookie without the
-	// SameSite=None for these browsers.
-	//
-	// Ref: https://www.imsglobal.org/samesite-cookie-issues-lti-tool-providers
-	legacyStateCookie := stateCookie
-	legacyStateCookie.Name = LegacyStateCookieName
-	legacyStateCookie.SameSite = http.SameSiteDefaultMode
+	if stateCookie.SameSite == http.SameSiteNoneMode {
+		// Not all browsers support the SameSite=None setting. Create and attach a copy of the cookie without the
+		// SameSite=None for these browsers.
+		//
+		// Ref: https://www.imsglobal.org/samesite-cookie-issues-lti-tool-providers
+		legacyStateCookie := stateCookie
+		legacyStateCookie.Name = LegacyStateCookieName
+		legacyStateCookie.SameSite = http.SameSiteDefaultMode
 
-	http.SetCookie(w, &legacyStateCookie)
+		http.SetCookie(w, &legacyStateCookie)
+	}
 
 	http.Redirect(w, r, redirectURI, http.StatusFound)
 }
